@@ -1,0 +1,318 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+  background: #111;
+  color: #eee;
+  line-height: 1.4;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #0d0d0d;
+  border-bottom: 1px solid #222;
+  flex-wrap: wrap;
+}
+
+.logo a {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  word-break: break-word;
+}
+.nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav a {
+  font-size: 14px;
+  padding: 6px 10px;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.nav a:hover {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.nav a.active {
+  background: #222;
+  color: #fff;
+}
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  width: 100%;
+}
+h1, h2, h3 {
+  margin: 0 0 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+h1 { font-size: 28px; }
+h2 { font-size: 22px; }
+h3 { font-size: 18px; }
+p {
+  margin: 0 0 12px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+input[type="file"],
+input[type="range"],
+input[type="datetime-local"] {
+  margin-top: 10px;
+  width: 100%;
+  max-width: 100%;
+}
+
+input[type="datetime-local"] {
+  background: #222;
+  border: 1px solid #333;
+  color: #eee;
+  padding: 8px 10px;
+}
+
+button {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #fff;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  max-width: 100%;
+}
+
+button:hover {
+  background: #222;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.actions,
+.controls,
+.toolbar,
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.actions button,
+.controls button,
+.toolbar button,
+.button-row button {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  min-width: 320px;
+}
+
+th, td {
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 14px;
+  border-bottom: 1px solid #222;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+th {
+  color: #aaa;
+  font-weight: 500;
+}
+
+.preview {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  width: 100%;
+}
+
+.preview > div,
+.preview-column {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.preview img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #222;
+  background: #000;
+  display: block;
+}
+
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.tool {
+  background: #0d0d0d;
+  border: 1px solid #222;
+  padding: 16px;
+  min-width: 0;
+}
+
+.tool:hover {
+  border-color: #333;
+}
+
+.tool a {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tool p {
+  color: #aaa;
+  font-size: 14px;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.tool .tag {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #888;
+}
+
+footer {
+  text-align: center;
+  padding: 24px 16px;
+  color: #555;
+  font-size: 13px;
+}
+
+small {
+  color: #666;
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .site-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nav {
+    width: 100%;
+  }
+
+  .nav a {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .container {
+    padding: 18px 12px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  h3 {
+    font-size: 16px;
+  }
+
+  .preview {
+    flex-direction: column;
+  }
+
+  .tools {
+    grid-template-columns: 1fr;
+  }
+
+  .actions,
+  .controls,
+  .toolbar,
+  .button-row {
+    flex-direction: column;
+  }
+
+  .actions button,
+  .controls button,
+  .toolbar button,
+  .button-row button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  table {
+    font-size: 13px;
+  }
+
+  th, td {
+    padding: 6px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .logo a {
+    font-size: 16px;
+  }
+
+  .nav a {
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  p {
+    font-size: 13px;
+  }
+}

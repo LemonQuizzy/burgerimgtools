@@ -1,0 +1,114 @@
+<html lang="ru">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>EXIF Cleaner — imgtools</title>
+<link rel="stylesheet" href="common.css">
+
+<style>
+body { background:#111; color:#eee; font-family:sans-serif; margin:0 }
+.container { max-width:900px; margin:0 auto; padding:30px 20px }
+table { width:100%; border-collapse:collapse; margin-top:20px }
+td, th { border-bottom:1px solid #222; padding:6px; font-size:14px }
+button { margin-top:15px; background:#1a1a1a; color:#fff; border:1px solid #333; padding:8px 14px; cursor:pointer }
+button:hover { background:#222 }
+input[type=datetime-local] { background:#222; color:#eee; border:1px solid #333 }
+</style>
+</head>
+
+<body>
+
+<header class="site-header">
+  <div class="logo"><a href="index.html">imgtools</a></div>
+  <nav class="nav">
+    <a href="index.html">Главная</a>
+    <a href="batchcomp.html">Компрессор</a>
+    <a href="exif.html" class="active">EXIF</a>
+  </nav>
+</header>
+
+<div class="container">
+<h2>EXIF Cleaner & Editor</h2>
+
+<input type="file" id="file" accept="image/jpeg">
+<div class="table-wrap">
+  <table id="meta"></table>
+</div>
+
+<div>
+  Дата съёмки:
+  <input type="datetime-local" id="date">
+</div>
+
+<button id="gps">Удалить GPS</button>
+<button id="all">Удалить всё EXIF</button>
+<button id="save">Скачать</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/piexifjs/piexif.min.js"></script>
+
+<script>
+const fileInput = document.getElementById('file');
+const meta = document.getElementById('meta');
+const dateInput = document.getElementById('date');
+
+let dataURL = null;
+
+fileInput.onchange = async () => {
+  const file = fileInput.files[0];
+  dataURL = await read(file);
+  const exif = await exifr.parse(file);
+  render(exif);
+  if (exif?.DateTimeOriginal)
+    dateInput.value = exif.DateTimeOriginal.replace(/^(\d+):(\d+):(\d+) /,'$1-$2-$3T');
+};
+
+function render(d) {
+  if (!d) {
+    meta.innerHTML = '<tr><td>EXIF не найден</td></tr>';
+    return;
+  }
+  meta.innerHTML = `
+    <tr><th>Camera</th><td>${d.Make||''} ${d.Model||''}</td></tr>
+    <tr><th>Date</th><td>${d.DateTimeOriginal||'—'}</td></tr>
+    <tr><th>Software</th><td>${d.Software||'—'}</td></tr>
+    <tr><th>GPS</th><td>${d.latitude ? d.latitude+', '+d.longitude : '—'}</td></tr>
+  `;
+}
+
+document.getElementById('gps').onclick = () => {
+  const ex = piexif.load(dataURL);
+  ex.GPS = {};
+  dataURL = piexif.insert(piexif.dump(ex), dataURL);
+  alert('GPS удалён');
+};
+
+document.getElementById('all').onclick = () => {
+  dataURL = piexif.remove(dataURL);
+  alert('EXIF очищен');
+};
+
+document.getElementById('save').onclick = () => {
+  if (dateInput.value) {
+    const ex = piexif.load(dataURL);
+    ex.Exif[piexif.ExifIFD.DateTimeOriginal] =
+      dateInput.value.replace('T',' ')+':00';
+    dataURL = piexif.insert(piexif.dump(ex), dataURL);
+  }
+  const a = document.createElement('a');
+  a.href = dataURL;
+  a.download = 'cleaned.jpg';
+  a.click();
+};
+
+function read(f) {
+  return new Promise(r=>{
+    const fr = new FileReader();
+    fr.onload=()=>r(fr.result);
+    fr.readAsDataURL(f);
+  });
+}
+</script>
+</body>
+</html>

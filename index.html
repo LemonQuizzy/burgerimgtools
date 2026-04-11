@@ -1,0 +1,66 @@
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>imgtools</title>
+
+<link rel="stylesheet" href="common.css">
+
+
+</head>
+
+<body>
+
+<header class="site-header">
+  <div class="logo">
+    <a href="index.html">imgtools</a>
+  </div>
+
+  <nav class="nav">
+    <a href="index.html" class="active">Главная</a>
+    <a href="batchcomp.html">Компрессор</a>
+    <a href="exif.html">EXIF</a>
+  </nav>
+</header>
+
+<div class="container">
+  <h1>Утилиты для изображений</h1>
+  <div class="subtitle">
+    Простые инструменты для работы с изображениями. Всё работает локально в браузере.
+  </div>
+
+  <div class="tools">
+    <div class="tool">
+      <a href="batchcomp.html">Batch Image Compressor</a>
+      <p>
+        Массовое сжатие изображений с контролем качества, предпросмотром и
+        точным прогнозом итогового веса.
+      </p>
+      <div class="tag">JPG / PNG / WebP</div>
+    </div>
+
+    <div class="tool">
+      <a href="exif.html">EXIF Cleaner & Editor</a>
+      <p>
+        Просмотр, удаление и редактирование EXIF-метаданных.
+        Удаление GPS, даты, информации о камере.
+      </p>
+      <div class="tag">Приватность · Фото</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  imgtools
+</footer>
+
+<script>
+document.querySelectorAll('.nav a').forEach(a => {
+  if (a.getAttribute('href') === location.pathname.split('/').pop()) {
+    a.classList.add('active');
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Image Compressor — imgtools</title>
+  <link rel="stylesheet" href="common.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="logo">
+      <a href="index.html">imgtools</a>
+    </div>
+    <nav class="nav">
+      <a href="index.html">Главная</a>
+      <a href="batchcomp.html" class="active">Компрессор</a>
+      <a href="exif.html">EXIF</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1>Batch Image Compressor</h1>
+    <p>Сожми изображение, настрой качество, уменьшай размер и смотри результат сразу.</p>
+
+    <label for="fileInput">Выбери изображение</label>
+    <input type="file" id="fileInput" accept="image/*">
+
+    <div class="controls">
+      <div style="width:100%;">
+        <label for="quality">Качество: <span id="qualityValue">80%</span></label>
+        <input type="range" id="quality" min="1" max="100" value="80">
+      </div>
+
+      <div style="width:100%;">
+        <label for="scale">Масштаб: <span id="scaleValue">100%</span></label>
+        <input type="range" id="scale" min="10" max="100" value="100">
+      </div>
+    </div>
+
+    <div class="preview">
+      <div>
+        <h3>До</h3>
+        <img id="beforeImg" alt="Исходное изображение">
+        <p>Размер: <span id="beforeSize">-</span></p>
+      </div>
+
+      <div>
+        <h3>После</h3>
+        <img id="afterImg" alt="Сжатое изображение">
+        <p>Размер: <span id="afterSize">-</span></p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="downloadBtn" disabled>Скачать JPG</button>
+      <button id="resetBtn">Сброс</button>
+    </div>
+  </main>
+
+  <footer>
+    imgtools
+  </footer>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const qualityInput = document.getElementById('quality');
+    const scaleInput = document.getElementById('scale');
+
+    const qualityValue = document.getElementById('qualityValue');
+    const scaleValue = document.getElementById('scaleValue');
+
+    const beforeImg = document.getElementById('beforeImg');
+    const afterImg = document.getElementById('afterImg');
+
+    const beforeSize = document.getElementById('beforeSize');
+    const afterSize = document.getElementById('afterSize');
+
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let originalFile = null;
+    let originalImage = null;
+    let outputBlob = null;
+    let outputUrl = null;
+    let beforeUrl = null;
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function updateLabels() {
+      qualityValue.textContent = qualityInput.value + '%';
+      scaleValue.textContent = scaleInput.value + '%';
+    }
+
+    function clearOutputPreview() {
+      if (outputUrl) {
+        URL.revokeObjectURL(outputUrl);
+        outputUrl = null;
+      }
+    }
+
+    function clearBeforePreview() {
+      if (beforeUrl) {
+        URL.revokeObjectURL(beforeUrl);
+        beforeUrl = null;
+      }
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const tempUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+          URL.revokeObjectURL(tempUrl);
+          resolve(img);
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(tempUrl);
+          reject(new Error('Не удалось загрузить изображение'));
+        };
+
+        img.src = tempUrl;
+      });
+    }
+
+    function recompressPreview() {
+      if (!originalFile || !originalImage) return;
+
+      clearOutputPreview();
+
+      const quality = Number(qualityInput.value) / 100;
+      const scale = Number(scaleInput.value) / 100;
+
+      const newWidth = Math.max(1, Math.round(originalImage.naturalWidth * scale));
+      const newHeight = Math.max(1, Math.round(originalImage.naturalHeight * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(originalImage, 0, 0, newWidth, newHeight);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+
+        outputBlob = blob;
+        outputUrl = URL.createObjectURL(blob);
+        afterImg.src = outputUrl;
+        afterSize.textContent = formatBytes(blob.size);
+        downloadBtn.disabled = false;
+      }, 'image/jpeg', quality);
+    }
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      originalFile = file;
+      outputBlob = null;
+
+      clearOutputPreview();
+      clearBeforePreview();
+
+      beforeUrl = URL.createObjectURL(file);
+      beforeImg.src = beforeUrl;
+      beforeSize.textContent = formatBytes(file.size);
+
+      afterImg.removeAttribute('src');
+      afterSize.textContent = '-';
+      downloadBtn.disabled = true;
+
+      try {
+        originalImage = await loadImageFromFile(file);
+        recompressPreview();
+      } catch (err) {
+        alert('Ошибка загрузки изображения');
+        console.error(err);
+      }
+    });
+
+    qualityInput.addEventListener('input', () => {
+      updateLabels();
+      recompressPreview();
+    });
+
+    scaleInput.addEventListener('input', () => {
+      updateLabels();
+      recompressPreview();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!outputBlob) return;
+
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(outputBlob);
+
+      a.href = url;
+      a.download = (originalFile?.name?.replace(/\.[^.]+$/, '') || 'image') + '-compressed.jpg';
+
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      originalFile = null;
+      originalImage = null;
+      outputBlob = null;
+
+      clearOutputPreview();
+      clearBeforePreview();
+
+      fileInput.value = '';
+      beforeImg.removeAttribute('src');
+      afterImg.removeAttribute('src');
+
+      beforeSize.textContent = '-';
+      afterSize.textContent = '-';
+
+      qualityInput.value = 80;
+      scaleInput.value = 100;
+      updateLabels();
+
+      downloadBtn.disabled = true;
+    });
+
+    updateLabels();
+  </script>
+</body>
+</html>
