@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Resizer — imgtools</title>
+  <link rel="stylesheet" href="common.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="logo">
+      <a href="index.html">imgtools</a>
+    </div>
+    <nav class="nav">
+      <a href="index.html">Главная</a>
+      <a href="batchcomp.html">Компрессор</a>
+      <a href="exif.html">EXIF</a>
+      <a href="resize.html" class="active">Размер</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1>Изменение размера</h1>
+    <p>Укажи точные размеры в пикселях. Инструмент подгонит фото под них.</p>
+
+    <label for="fileInput">Выбери изображение</label>
+    <input type="file" id="fileInput" accept="image/*">
+
+    <div class="controls">
+      <div style="flex: 1;">
+        <label>Ширина (px)</label>
+        <input type="number" id="targetWidth" value="100">
+      </div>
+      <div style="flex: 1;">
+        <label>Высота (px)</label>
+        <input type="number" id="targetHeight" value="100">
+      </div>
+      <div style="width: 100%;">
+        <label for="resizeMode">Режим подгонки</label>
+        <select id="resizeMode" style="width: 100%; background: #222; color: #eee; border: 1px solid #333; padding: 8px; margin-top: 10px;">
+          <option value="cover">Обрезать под размер (Fill)</option>
+          <option value="contain">Вписать целиком (Fit)</option>
+          <option value="stretch">Растянуть</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="preview">
+      <div style="text-align: center;">
+        <h3>Результат</h3>
+        <canvas id="canvasPreview" style="max-width: 100%; border: 1px solid #222; background: #000;"></canvas>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="downloadBtn" disabled>Скачать результат</button>
+      <button id="resetBtn">Сброс</button>
+    </div>
+  </main>
+
+  <footer>imgtools</footer>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const targetWidth = document.getElementById('targetWidth');
+    const targetHeight = document.getElementById('targetHeight');
+    const resizeMode = document.getElementById('resizeMode');
+    const canvas = document.getElementById('canvasPreview');
+    const ctx = canvas.getContext('2d');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let originalImage = null;
+
+    function processImage() {
+      if (!originalImage) return;
+
+      const w = parseInt(targetWidth.value) || 100;
+      const h = parseInt(targetHeight.value) || 100;
+      const mode = resizeMode.value;
+
+      canvas.width = w;
+      canvas.height = h;
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (mode === 'stretch') {
+        ctx.drawImage(originalImage, 0, 0, w, h);
+      } else {
+        const imgRatio = originalImage.width / originalImage.height;
+        const targetRatio = w / h;
+        let drawW, drawH, drawX, drawY;
+
+        if (mode === 'cover') {
+          if (imgRatio > targetRatio) {
+            drawH = h;
+            drawW = h * imgRatio;
+            drawX = (w - drawW) / 2;
+            drawY = 0;
+          } else {
+            drawW = w;
+            drawH = w / imgRatio;
+            drawX = 0;
+            drawY = (h - drawH) / 2;
+          }
+        } else if (mode === 'contain') {
+          if (imgRatio > targetRatio) {
+            drawW = w;
+            drawH = w / imgRatio;
+            drawX = 0;
+            drawY = (h - drawH) / 2;
+          } else {
+            drawH = h;
+            drawW = h * imgRatio;
+            drawX = (w - drawW) / 2;
+            drawY = 0;
+          }
+        }
+        ctx.drawImage(originalImage, drawX, drawY, drawW, drawH);
+      }
+      downloadBtn.disabled = false;
+    }
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          originalImage = img;
+          processImage();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    [targetWidth, targetHeight, resizeMode].forEach(el => {
+      el.oninput = processImage;
+    });
+
+    downloadBtn.onclick = () => {
+      const link = document.createElement('a');
+      link.download = 'resized-image.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+    resetBtn.onclick = () => {
+      location.reload();
+    };
+  </script>
+</body>
+</html>
