@@ -1,14 +1,54 @@
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>imgtools</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>imgtools</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .hero {
+      padding: 56px 0 40px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
+    }
 
-<link rel="stylesheet" href="common.css">
+    .hero h1 {
+      font-size: 38px;
+      margin-bottom: 12px;
+    }
 
+    .hero p {
+      font-size: 15px;
+      max-width: 420px;
+      margin: 0;
+    }
 
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      border: 1px solid rgba(200,255,0,0.25);
+      padding: 4px 10px;
+      margin-bottom: 18px;
+      letter-spacing: 0.04em;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    @media (max-width: 700px) {
+      .hero { padding: 32px 0 28px; }
+      .hero h1 { font-size: 26px; }
+    }
+  </style>
 </head>
-
 <body>
 
 <header class="site-header">
@@ -16,58 +56,39 @@
     <a href="index.html">imgtools</a>
   </div>
   <nav class="nav">
-    <a href="index.html">Главная</a>
+    <a href="index.html" class="active">Главная</a>
     <a href="batchcomp.html">Компрессор</a>
     <a href="exif.html">EXIF</a>
-    <a href="resize.html">Размер</a>
   </nav>
 </header>
 
-<div class="container">
-  <h1>Утилиты для изображений</h1>
-  <div class="subtitle">
-    Простые инструменты для работы с изображениями. Всё работает локально в браузере.
+<main class="container">
+  <div class="hero">
+    <div class="badge">локально · в браузере</div>
+    <h1>Утилиты для изображений</h1>
+    <p>Простые инструменты для работы с фото. Всё работает локально в браузере.</p>
   </div>
 
   <div class="tools">
     <div class="tool">
-      <a href="resize.html">Image Resizer</a>
+      <a href="batchcomp.html">Compress & Resize</a>
       <p>
-        Изменение размера до конкретных пикселей. Режимы обрезки, вписывания и растягивания.
+        Сжатие веса и изменение размеров (px). Режимы обрезки, вписывания и контроля качества JPG.
       </p>
-      <div class="tag">Пропорции · Resize</div>
-    </div>
-    <div class="tool">
-      <a href="batchcomp.html">Batch Image Compressor</a>
-      <p>
-        Массовое сжатие изображений с контролем качества, предпросмотром и
-        точным прогнозом итогового веса.
-      </p>
-      <div class="tag">JPG / PNG / WebP</div>
+      <div class="tag">Масштаб · Качество · JPG</div>
     </div>
 
     <div class="tool">
       <a href="exif.html">EXIF Cleaner & Editor</a>
       <p>
-        Просмотр, удаление и редактирование EXIF-метаданных.
-        Удаление GPS, даты, информации о камере.
+        Просмотр и удаление метаданных. Удаляй GPS-координаты, меняй дату съёмки или чисти всё сразу.
       </p>
-      <div class="tag">Приватность · Фото</div>
+      <div class="tag">Приватность · Метаданные</div>
     </div>
   </div>
-</div>
+</main>
 
-<footer>
-  imgtools
-</footer>
-
-<script>
-document.querySelectorAll('.nav a').forEach(a => {
-  if (a.getAttribute('href') === location.pathname.split('/').pop()) {
-    a.classList.add('active');
-  }
-});
-</script>
+<footer>imgtools</footer>
 
 </body>
 </html>

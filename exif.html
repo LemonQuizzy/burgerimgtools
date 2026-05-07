@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EXIF Cleaner — imgtools</title>
   <link rel="stylesheet" href="common.css">
+  <style>
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0 20px;
+    }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -15,16 +22,17 @@
       <a href="index.html">Главная</a>
       <a href="batchcomp.html">Компрессор</a>
       <a href="exif.html" class="active">EXIF</a>
-      <a href="resize.html">Размер</a>
     </nav>
   </header>
 
   <main class="container">
     <h1>EXIF Cleaner & Editor</h1>
-    <p>Просмотр и редактирование метаданных. Поддерживается удаление GPS, изменение даты и полная очистка.</p>
+    <p>Просмотр и редактирование метаданных. Поддерживается удаление GPS и изменение даты.</p>
 
     <label for="fileInput">Выбери изображение (JPG/RAW)</label>
     <input type="file" id="fileInput" accept="image/jpeg,image/x-canon-cr2,image/x-nikon-nef,image/x-sony-arw">
+
+    <hr class="section-divider">
 
     <div class="table-wrap">
       <table id="metaTable">
@@ -36,30 +44,28 @@
         </thead>
         <tbody id="metaBody">
           <tr>
-            <td colspan="2" style="text-align: center; color: #666;">Файл не выбран</td>
+            <td colspan="2" style="text-align: center; color: var(--text-dim);">Файл не выбран</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <div class="controls">
+    <div class="controls" style="flex-direction: column; gap: 12px; margin-top: 20px;">
       <div style="width: 100%;">
         <label for="dateInput">Дата съёмки</label>
         <input type="datetime-local" id="dateInput">
       </div>
     </div>
 
-    <div class="actions">
+    <div class="actions" style="margin-top: 20px;">
       <button id="gpsBtn" disabled>Удалить GPS</button>
       <button id="allBtn" disabled>Удалить всё</button>
-      <button id="saveBtn" disabled>Скачать результат</button>
+      <button id="saveBtn" class="primary" disabled>Скачать результат</button>
       <button id="resetBtn">Сброс</button>
     </div>
   </main>
 
-  <footer>
-    imgtools
-  </footer>
+  <footer>imgtools</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/piexifjs/piexif.min.js"></script>
@@ -82,7 +88,7 @@
 
       originalFileName = file.name;
       dataURL = await readAsDataURL(file);
-      
+
       try {
         const exif = await exifr.parse(file);
         renderMeta(exif);
@@ -90,12 +96,11 @@
           const formattedDate = exif.DateTimeOriginal.toString().replace(/^(\d+):(\d+):(\d+) /, '$1-$2-$3T');
           dateInput.value = formattedDate.substring(0, 16);
         }
-        
         gpsBtn.disabled = false;
         allBtn.disabled = false;
         saveBtn.disabled = false;
       } catch (err) {
-        metaBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">Метаданные не найдены или формат не поддерживается</td></tr>';
+        metaBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">Метаданные не найдены</td></tr>';
       }
     };
 
@@ -113,39 +118,31 @@
     }
 
     gpsBtn.onclick = () => {
-      try {
-        const ex = piexif.load(dataURL);
-        ex.GPS = {};
-        dataURL = piexif.insert(piexif.dump(ex), dataURL);
-        alert('GPS данные удалены');
-      } catch (e) {
-        alert('Ошибка при удалении GPS');
-      }
+      const ex = piexif.load(dataURL);
+      ex.GPS = {};
+      dataURL = piexif.insert(piexif.dump(ex), dataURL);
+      alert('GPS удалён');
     };
 
     allBtn.onclick = () => {
       dataURL = piexif.remove(dataURL);
       metaBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">Все данные удалены</td></tr>';
-      alert('EXIF полностью очищен');
+      alert('EXIF очищен');
     };
 
     saveBtn.onclick = () => {
       if (dateInput.value) {
-        try {
-          const ex = piexif.load(dataURL);
-          ex.Exif[piexif.ExifIFD.DateTimeOriginal] = dateInput.value.replace('T', ' ') + ':00';
-          dataURL = piexif.insert(piexif.dump(ex), dataURL);
-        } catch (e) {}
+        const ex = piexif.load(dataURL);
+        ex.Exif[piexif.ExifIFD.DateTimeOriginal] = dateInput.value.replace('T', ' ') + ':00';
+        dataURL = piexif.insert(piexif.dump(ex), dataURL);
       }
       const a = document.createElement('a');
       a.href = dataURL;
-      a.download = 'edited-' + originalFileName;
+      a.download = 'cleaned-' + originalFileName;
       a.click();
     };
 
-    resetBtn.onclick = () => {
-      location.reload();
-    };
+    resetBtn.onclick = () => location.reload();
 
     function readAsDataURL(f) {
       return new Promise(r => {

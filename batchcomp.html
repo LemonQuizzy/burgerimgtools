@@ -5,6 +5,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Batch Image Compressor — imgtools</title>
   <link rel="stylesheet" href="common.css">
+  <style>
+    .preview img {
+      width: 100%;
+      height: 300px;
+      object-fit: contain;
+      background: #000;
+      border: 1px solid var(--border);
+    }
+
+    .preview h3 {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .size-tag {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 8px;
+    }
+
+    .size-tag span {
+      color: var(--accent);
+    }
+
+    .quality-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .quality-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    .dim-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .dim-row > div { flex: 1; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .checkbox-row label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0;
+      text-transform: none;
+      letter-spacing: 0;
+      cursor: pointer;
+    }
+
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0 20px;
+    }
+
+    @media (max-width: 700px) {
+      .preview img { height: 220px; }
+    }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -13,69 +98,89 @@
     </div>
     <nav class="nav">
       <a href="index.html">Главная</a>
-      <a href="batchcomp.html">Компрессор</a>
+      <a href="batchcomp.html" class="active">Компрессор</a>
       <a href="exif.html">EXIF</a>
-      <a href="resize.html">Размер</a>
     </nav>
   </header>
 
   <main class="container">
-    <h1>Batch Image Compressor</h1>
-    <p>Сожми изображение, настрой качество, уменьшай размер и смотри результат сразу.</p>
+    <h1>Compress & Resize</h1>
+    <p>Настрой размер, режим подгонки и качество. Результат виден сразу.</p>
 
     <label for="fileInput">Выбери изображение</label>
     <input type="file" id="fileInput" accept="image/*">
 
-    <div class="controls">
+    <hr class="section-divider">
+
+    <div class="controls" style="flex-direction: column; gap: 16px;">
       <div style="width:100%;">
-        <label for="quality">Качество: <span id="qualityValue">80%</span></label>
+        <div class="quality-row">
+          <label style="margin:0;">Качество</label>
+          <span class="quality-val" id="qualityValue">80%</span>
+        </div>
         <input type="range" id="quality" min="1" max="100" value="80">
       </div>
 
+      <div class="dim-row">
+        <div>
+          <label>Ширина (px)</label>
+          <input type="number" id="targetWidth">
+        </div>
+        <div>
+          <label>Высота (px)</label>
+          <input type="number" id="targetHeight">
+        </div>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="keepAspect" checked>
+        <label for="keepAspect">Сохранять пропорции</label>
+      </div>
+
       <div style="width:100%;">
-        <label for="scale">Масштаб: <span id="scaleValue">100%</span></label>
-        <input type="range" id="scale" min="10" max="100" value="100">
+        <label for="resizeMode">Режим подгонки</label>
+        <select id="resizeMode">
+          <option value="cover">Заполнить (Обрезать лишнее)</option>
+          <option value="contain">Вписать (С полями)</option>
+          <option value="stretch">Растянуть</option>
+        </select>
       </div>
     </div>
 
     <div class="preview">
       <div>
         <h3>До</h3>
-        <img id="beforeImg" alt="Исходное изображение">
-        <p>Размер: <span id="beforeSize">-</span></p>
+        <img id="beforeImg">
+        <p class="size-tag">Размер: <span id="beforeSize">—</span></p>
       </div>
 
       <div>
         <h3>После</h3>
-        <img id="afterImg" alt="Сжатое изображение">
-        <p>Размер: <span id="afterSize">-</span></p>
+        <img id="afterImg">
+        <p class="size-tag">Размер: <span id="afterSize">—</span></p>
       </div>
     </div>
 
-    <div class="actions">
-      <button id="downloadBtn" disabled>Скачать JPG</button>
+    <div class="actions" style="margin-top: 20px;">
+      <button id="downloadBtn" class="primary" disabled>Скачать JPG</button>
       <button id="resetBtn">Сброс</button>
     </div>
   </main>
 
-  <footer>
-    imgtools
-  </footer>
+  <footer>imgtools</footer>
 
   <script>
     const fileInput = document.getElementById('fileInput');
     const qualityInput = document.getElementById('quality');
-    const scaleInput = document.getElementById('scale');
-
     const qualityValue = document.getElementById('qualityValue');
-    const scaleValue = document.getElementById('scaleValue');
-
+    const targetWidth = document.getElementById('targetWidth');
+    const targetHeight = document.getElementById('targetHeight');
+    const resizeMode = document.getElementById('resizeMode');
+    const keepAspect = document.getElementById('keepAspect');
     const beforeImg = document.getElementById('beforeImg');
     const afterImg = document.getElementById('afterImg');
-
     const beforeSize = document.getElementById('beforeSize');
     const afterSize = document.getElementById('afterSize');
-
     const downloadBtn = document.getElementById('downloadBtn');
     const resetBtn = document.getElementById('resetBtn');
 
@@ -83,7 +188,6 @@
     let originalImage = null;
     let outputBlob = null;
     let outputUrl = null;
-    let beforeUrl = null;
 
     function formatBytes(bytes) {
       if (bytes < 1024) return bytes + ' B';
@@ -91,152 +195,94 @@
       return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
     }
 
-    function updateLabels() {
-      qualityValue.textContent = qualityInput.value + '%';
-      scaleValue.textContent = scaleInput.value + '%';
-    }
+    function recompress() {
+      if (!originalImage) return;
 
-    function clearOutputPreview() {
-      if (outputUrl) {
-        URL.revokeObjectURL(outputUrl);
-        outputUrl = null;
-      }
-    }
-
-    function clearBeforePreview() {
-      if (beforeUrl) {
-        URL.revokeObjectURL(beforeUrl);
-        beforeUrl = null;
-      }
-    }
-
-    function loadImageFromFile(file) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        const tempUrl = URL.createObjectURL(file);
-
-        img.onload = () => {
-          URL.revokeObjectURL(tempUrl);
-          resolve(img);
-        };
-
-        img.onerror = () => {
-          URL.revokeObjectURL(tempUrl);
-          reject(new Error('Не удалось загрузить изображение'));
-        };
-
-        img.src = tempUrl;
-      });
-    }
-
-    function recompressPreview() {
-      if (!originalFile || !originalImage) return;
-
-      clearOutputPreview();
-
-      const quality = Number(qualityInput.value) / 100;
-      const scale = Number(scaleInput.value) / 100;
-
-      const newWidth = Math.max(1, Math.round(originalImage.naturalWidth * scale));
-      const newHeight = Math.max(1, Math.round(originalImage.naturalHeight * scale));
+      const w = parseInt(targetWidth.value) || originalImage.naturalWidth;
+      const h = parseInt(targetHeight.value) || originalImage.naturalHeight;
+      const mode = resizeMode.value;
 
       const canvas = document.createElement('canvas');
-      canvas.width = newWidth;
-      canvas.height = newHeight;
-
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(originalImage, 0, 0, newWidth, newHeight);
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (mode === 'stretch') {
+        ctx.drawImage(originalImage, 0, 0, w, h);
+      } else {
+        const imgRatio = originalImage.naturalWidth / originalImage.naturalHeight;
+        const targetRatio = w / h;
+        let drawW, drawH, drawX, drawY;
+
+        if (mode === 'cover') {
+          if (imgRatio > targetRatio) {
+            drawH = h; drawW = h * imgRatio;
+            drawX = (w - drawW) / 2; drawY = 0;
+          } else {
+            drawW = w; drawH = w / imgRatio;
+            drawX = 0; drawY = (h - drawH) / 2;
+          }
+        } else {
+          if (imgRatio > targetRatio) {
+            drawW = w; drawH = w / imgRatio;
+            drawX = 0; drawY = (h - drawH) / 2;
+          } else {
+            drawH = h; drawW = h * imgRatio;
+            drawX = (w - drawW) / 2; drawY = 0;
+          }
+        }
+        ctx.drawImage(originalImage, drawX, drawY, drawW, drawH);
+      }
 
       canvas.toBlob((blob) => {
         if (!blob) return;
-
+        if (outputUrl) URL.revokeObjectURL(outputUrl);
         outputBlob = blob;
         outputUrl = URL.createObjectURL(blob);
         afterImg.src = outputUrl;
         afterSize.textContent = formatBytes(blob.size);
         downloadBtn.disabled = false;
-      }, 'image/jpeg', quality);
+      }, 'image/jpeg', qualityInput.value / 100);
     }
 
-    fileInput.addEventListener('change', async (e) => {
+    fileInput.onchange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       originalFile = file;
-      outputBlob = null;
-
-      clearOutputPreview();
-      clearBeforePreview();
-
-      beforeUrl = URL.createObjectURL(file);
-      beforeImg.src = beforeUrl;
+      beforeImg.src = URL.createObjectURL(file);
       beforeSize.textContent = formatBytes(file.size);
 
-      afterImg.removeAttribute('src');
-      afterSize.textContent = '-';
-      downloadBtn.disabled = true;
+      const img = new Image();
+      img.onload = () => {
+        originalImage = img;
+        targetWidth.value = img.naturalWidth;
+        targetHeight.value = img.naturalHeight;
+        recompress();
+      };
+      img.src = beforeImg.src;
+    };
 
-      try {
-        originalImage = await loadImageFromFile(file);
-        recompressPreview();
-      } catch (err) {
-        alert('Ошибка загрузки изображения');
-        console.error(err);
-      }
+    [targetWidth, targetHeight, resizeMode, qualityInput].forEach(el => {
+      el.oninput = () => {
+        if (el === qualityInput) qualityValue.textContent = qualityInput.value + '%';
+        if (keepAspect.checked && originalImage) {
+          if (el === targetWidth) targetHeight.value = Math.round(targetWidth.value / (originalImage.naturalWidth / originalImage.naturalHeight));
+          if (el === targetHeight) targetWidth.value = Math.round(targetHeight.value * (originalImage.naturalWidth / originalImage.naturalHeight));
+        }
+        recompress();
+      };
     });
 
-    qualityInput.addEventListener('input', () => {
-      updateLabels();
-      recompressPreview();
-    });
-
-    scaleInput.addEventListener('input', () => {
-      updateLabels();
-      recompressPreview();
-    });
-
-    downloadBtn.addEventListener('click', () => {
-      if (!outputBlob) return;
-
+    downloadBtn.onclick = () => {
       const a = document.createElement('a');
-      const url = URL.createObjectURL(outputBlob);
-
-      a.href = url;
-      a.download = (originalFile?.name?.replace(/\.[^.]+$/, '') || 'image') + '-compressed.jpg';
-
-      document.body.appendChild(a);
+      a.href = outputUrl;
+      a.download = 'imgtools_' + originalFile.name.split('.')[0] + '.jpg';
       a.click();
+    };
 
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-    });
-
-    resetBtn.addEventListener('click', () => {
-      originalFile = null;
-      originalImage = null;
-      outputBlob = null;
-
-      clearOutputPreview();
-      clearBeforePreview();
-
-      fileInput.value = '';
-      beforeImg.removeAttribute('src');
-      afterImg.removeAttribute('src');
-
-      beforeSize.textContent = '-';
-      afterSize.textContent = '-';
-
-      qualityInput.value = 80;
-      scaleInput.value = 100;
-      updateLabels();
-
-      downloadBtn.disabled = true;
-    });
-
-    updateLabels();
+    resetBtn.onclick = () => location.reload();
   </script>
 </body>
 </html>
