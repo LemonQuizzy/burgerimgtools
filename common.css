@@ -188,6 +188,8 @@ a {
   top: 0;
   z-index: 100;
   backdrop-filter: blur(8px);
+  /* нужно для position:absolute у .settings-panel */
+  isolation: isolate;
 }
 
 .logo a {

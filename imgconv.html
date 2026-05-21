@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Converter — imgtools</title>
+  <link rel="stylesheet" href="common.css">
+  <script>
+    (function(){
+      var t = localStorage.getItem("it-theme") || "dark";
+      var a = localStorage.getItem("it-accent") || "#c8ff00";
+      document.documentElement.setAttribute("data-theme", t);
+      document.documentElement.style.setProperty("--accent", a);
+      var r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
+      document.documentElement.style.setProperty("--accent-dim","rgba("+r+","+g+","+b+",0.12)");
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    .drop-zone {
+      border: 1px dashed var(--border-hover);
+      background: var(--surface-2);
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      margin-top: 6px;
+      position: relative;
+    }
+    .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      margin: 0; padding: 0; border: none; background: none;
+      width: 100%; height: 100%;
+    }
+    .drop-zone-text { font-family: var(--mono); font-size: 12px; color: var(--text-muted); pointer-events: none; }
+    .drop-zone-text strong { color: var(--accent); }
+
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 24px 0 20px; }
+
+    .format-row { display: flex; gap: 4px; flex-wrap: wrap; }
+    .fmt-btn {
+      flex: 1; min-width: 60px; padding: 9px 4px;
+      font-family: var(--mono); font-size: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer; text-align: center;
+      transition: all .15s; letter-spacing: .02em;
+    }
+    .fmt-btn:hover { color: var(--text); border-color: var(--border-hover); }
+    .fmt-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    .quality-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .quality-val { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+
+    .file-list { display: flex; flex-direction: column; gap: 5px; margin-top: 16px; }
+    .file-item {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      padding: 8px 12px; font-family: var(--mono); font-size: 12px;
+    }
+    .fi-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .fi-from { color: var(--text-dim); white-space: nowrap; }
+    .fi-arrow { color: var(--text-dim); }
+    .fi-to { white-space: nowrap; }
+    .fi-to.done { color: var(--accent); }
+    .fi-to.error { color: #ff4d6d; }
+
+    .png-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 6px; display: none; }
+    .png-note.visible { display: block; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="logo"><a href="index.html">imgtools</a></div>
+    <nav class="nav">
+      <a href="index.html">Главная</a>
+      <a href="batchcomp.html">Компрессор</a>
+      <a href="exif.html">EXIF</a>
+      <a href="imgconv.html" class="active">Фото</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1>Image Converter</h1>
+    <p>Конвертация изображений без загрузки на сервер. Всё работает локально.</p>
+
+    <label>Выбери файл(ы)</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div class="drop-zone-text">
+        Перетащи сюда или <strong>нажми для выбора</strong><br>
+        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF, BMP, AVIF и другие</span>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <label>Конвертировать в</label>
+        <div class="format-row">
+          <div class="fmt-btn active" data-fmt="image/jpeg" data-ext="jpg">JPG</div>
+          <div class="fmt-btn" data-fmt="image/png" data-ext="png">PNG</div>
+          <div class="fmt-btn" data-fmt="image/webp" data-ext="webp">WebP</div>
+          <div class="fmt-btn" data-fmt="image/avif" data-ext="avif">AVIF</div>
+          <div class="fmt-btn" data-fmt="image/bmp" data-ext="bmp">BMP</div>
+        </div>
+        <div class="png-note" id="pngNote">PNG и BMP — без потерь, ползунок качества не влияет</div>
+      </div>
+
+      <div>
+        <div class="quality-row">
+          <label style="margin:0;">Качество</label>
+          <span class="quality-val" id="qualityValue">90%</span>
+        </div>
+        <input type="range" id="quality" min="1" max="100" value="90">
+      </div>
+    </div>
+
+    <div class="file-list" id="fileList"></div>
+
+    <div class="actions" style="margin-top:20px;">
+      <button id="convertBtn" class="primary" disabled>Конвертировать</button>
+      <button id="downloadAllBtn" disabled>Скачать ZIP</button>
+      <button id="resetBtn">Сброс</button>
+    </div>
+  </main>
+
+  <footer>imgtools</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const dropZone     = document.getElementById('dropZone');
+    const fileInput    = document.getElementById('fileInput');
+    const qualityInput = document.getElementById('quality');
+    const qualityValue = document.getElementById('qualityValue');
+    const fileList     = document.getElementById('fileList');
+    const convertBtn   = document.getElementById('convertBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const resetBtn     = document.getElementById('resetBtn');
+    const pngNote      = document.getElementById('pngNote');
+
+    let currentFmt = 'image/jpeg';
+    let currentExt = 'jpg';
+    let files = [];
+    let results = []; // { blob, name }
+    let singleUrl = null; // для отзыва blob URL одиночного файла
+
+    qualityInput.oninput = () => { qualityValue.textContent = qualityInput.value + '%'; };
+
+    document.querySelectorAll('.fmt-btn').forEach(b => {
+      b.onclick = () => {
+        document.querySelectorAll('.fmt-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        currentFmt = b.dataset.fmt;
+        currentExt = b.dataset.ext;
+        const lossless = currentFmt === 'image/png' || currentFmt === 'image/bmp';
+        pngNote.classList.toggle('visible', lossless);
+        qualityInput.disabled = lossless;
+      };
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
+    });
+    fileInput.onchange = e => { if (e.target.files.length) loadFiles(e.target.files); };
+
+    function loadFiles(f) {
+      files = Array.from(f);
+      results = [];
+      fileList.innerHTML = '';
+      convertBtn.disabled = false;
+      downloadAllBtn.disabled = true;
+
+      files.forEach((file, i) => {
+        const ext = file.name.split('.').pop().toUpperCase();
+        const el = document.createElement('div');
+        el.className = 'file-item';
+        el.innerHTML = `
+          <span class="fi-name">${file.name}</span>
+          <span class="fi-from">${ext}</span>
+          <span class="fi-arrow">→</span>
+          <span class="fi-to" id="fi${i}">ожидание</span>
+        `;
+        fileList.appendChild(el);
+      });
+    }
+
+    convertBtn.onclick = async () => {
+      convertBtn.disabled = true;
+      results = [];
+
+      await Promise.all(files.map((file, i) => new Promise(resolve => {
+        const span = document.getElementById('fi' + i);
+        span.textContent = 'обработка…';
+        span.className = 'fi-to';
+
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+
+          // Для JPG заливаем белым фоном (прозрачность → белый)
+          if (currentFmt === 'image/jpeg') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+          }
+          ctx.drawImage(img, 0, 0);
+
+          canvas.toBlob(blob => {
+            URL.revokeObjectURL(url);
+            if (!blob) {
+              span.textContent = 'ошибка';
+              span.className = 'fi-to error';
+              resolve(); return;
+            }
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            results[i] = { blob, name: baseName + '.' + currentExt };
+            span.textContent = currentExt.toUpperCase() + ' · ' + formatBytes(blob.size);
+            span.className = 'fi-to done';
+
+            // одиночный файл — сразу скачать
+            if (files.length === 1) {
+              if (singleUrl) URL.revokeObjectURL(singleUrl);
+              singleUrl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = singleUrl;
+              a.download = results[i].name;
+              a.click();
+            }
+            resolve();
+          }, currentFmt, qualityInput.value / 100);
+        };
+        img.onerror = () => {
+          span.textContent = 'не удалось прочитать';
+          span.className = 'fi-to error';
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        img.src = url;
+      })));
+
+      if (files.length > 1) downloadAllBtn.disabled = false;
+      convertBtn.disabled = false;
+    };
+
+    downloadAllBtn.onclick = async () => {
+      const zip = new JSZip();
+      results.forEach(r => { if (r) zip.file(r.name, r.blob); });
+      const content = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = 'imgtools_converted.zip';
+      a.click();
+    };
+
+    resetBtn.onclick = () => location.reload();
+
+    function formatBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1048576).toFixed(2) + ' MB';
+    }
+  </script>
+  <script src="settings.js"></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

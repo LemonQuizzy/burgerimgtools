@@ -5,101 +5,129 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Batch Image Compressor — imgtools</title>
   <link rel="stylesheet" href="common.css">
+  <script>
+    (function(){
+      var t = localStorage.getItem("it-theme") || "dark";
+      var a = localStorage.getItem("it-accent") || "#c8ff00";
+      document.documentElement.setAttribute("data-theme", t);
+      document.documentElement.style.setProperty("--accent", a);
+      var r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
+      document.documentElement.style.setProperty("--accent-dim","rgba("+r+","+g+","+b+",0.12)");
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json">
   <style>
     .preview img {
-      width: 100%;
-      height: 300px;
+      width: 100%; height: 300px;
       object-fit: contain;
       background: #000;
       border: 1px solid var(--border);
+      display: block;
     }
-
     .preview h3 {
-      font-family: var(--mono);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      margin-bottom: 8px;
+      font-family: var(--mono); font-size: 11px;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: var(--text-muted); margin-bottom: 8px;
     }
-
-    .size-tag {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-top: 8px;
-    }
-
-    .size-tag span {
-      color: var(--accent);
-    }
-
-    .quality-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .quality-val {
-      font-family: var(--mono);
-      font-size: 13px;
-      color: var(--accent);
-    }
-
-    .dim-row {
-      display: flex;
-      gap: 10px;
-      width: 100%;
-    }
-
+    .size-tag { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+    .size-tag span { color: var(--accent); }
+    .quality-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .quality-val { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+    .dim-row { display: flex; gap: 10px; width: 100%; }
     .dim-row > div { flex: 1; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 4px; }
+    .checkbox-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+    .checkbox-row label { font-size: 12px; color: var(--text-muted); margin: 0; text-transform: none; letter-spacing: 0; cursor: pointer; }
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 24px 0 20px; }
 
-    .checkbox-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      margin-top: 4px;
-    }
-
-    .checkbox-row input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-      accent-color: var(--accent);
-      margin: 0;
+    /* drag-drop */
+    .drop-zone {
+      border: 1px dashed var(--border-hover);
+      background: var(--surface-2);
+      padding: 28px 16px;
+      text-align: center;
       cursor: pointer;
+      transition: border-color .15s, background .15s;
+      margin-top: 6px;
+      position: relative;
     }
+    .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      margin: 0; padding: 0; border: none; background: none;
+      width: 100%; height: 100%;
+    }
+    .drop-zone-text { font-family: var(--mono); font-size: 12px; color: var(--text-muted); pointer-events: none; }
+    .drop-zone-text strong { color: var(--accent); }
 
-    .checkbox-row label {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin: 0;
-      text-transform: none;
-      letter-spacing: 0;
-      cursor: pointer;
+    /* batch list */
+    .batch-list { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .batch-item {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      padding: 8px 12px; font-family: var(--mono); font-size: 12px;
     }
+    .batch-item .bi-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .batch-item .bi-before { color: var(--text-muted); white-space: nowrap; }
+    .batch-item .bi-after  { white-space: nowrap; }
+    .bi-after.saving { color: var(--text-dim); }
+    .bi-saving-pct { font-weight: 700; }
+    .bi-saving-pct.good  { color: #4caf50; }
+    .bi-saving-pct.ok    { color: var(--accent); }
+    .bi-saving-pct.bad   { color: #ff4d6d; }
 
-    .section-divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 24px 0 20px;
+    /* format selector */
+    .format-row { display: flex; gap: 4px; }
+    .fmt-btn {
+      flex: 1; padding: 7px 4px;
+      font-family: var(--mono); font-size: 11px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer; text-align: center;
+      transition: all .15s; letter-spacing: .02em;
     }
+    .fmt-btn:hover { color: var(--text); border-color: var(--border-hover); }
+    .fmt-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    /* history */
+    .history-section { margin-top: 32px; }
+    .history-section h2 { font-size: 14px; color: var(--text-muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .history-list { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+    .hist-item {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono); font-size: 11px;
+      padding: 6px 10px; border: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .hist-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+    .hist-sizes { color: var(--text-dim); white-space: nowrap; }
+    .hist-pct { white-space: nowrap; font-weight: 700; }
+
+    /* presets */
+    .preset-row { display: flex; gap: 4px; flex-wrap: wrap; width: 100%; }
+    .preset-btn {
+      padding: 5px 10px;
+      font-family: var(--mono); font-size: 11px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer;
+      transition: all .15s; white-space: nowrap; letter-spacing: .02em;
+    }
+    .preset-btn:hover { color: var(--text); border-color: var(--border-hover); background: var(--surface-2); }
+    .preset-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
     @media (max-width: 700px) {
       .preview img { height: 220px; }
+      .batch-item { flex-wrap: wrap; }
     }
   </style>
 </head>
 <body>
   <header class="site-header">
-    <div class="logo">
-      <a href="index.html">imgtools</a>
-    </div>
+    <div class="logo"><a href="index.html">imgtools</a></div>
     <nav class="nav">
       <a href="index.html">Главная</a>
       <a href="batchcomp.html" class="active">Компрессор</a>
       <a href="exif.html">EXIF</a>
+      <a href="imgconv.html">Фото</a>
     </nav>
   </header>
 
@@ -107,12 +135,18 @@
     <h1>Compress & Resize</h1>
     <p>Настрой размер, режим подгонки и качество. Результат виден сразу.</p>
 
-    <label for="fileInput">Выбери изображение</label>
-    <input type="file" id="fileInput" accept="image/*">
+    <label>Выбери изображение(я)</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div class="drop-zone-text">
+        Перетащи сюда или <strong>нажми для выбора</strong><br>
+        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF и другие</span>
+      </div>
+    </div>
 
     <hr class="section-divider">
 
-    <div class="controls" style="flex-direction: column; gap: 16px;">
+    <div class="controls" style="flex-direction:column;gap:16px;">
       <div style="width:100%;">
         <div class="quality-row">
           <label style="margin:0;">Качество</label>
@@ -122,19 +156,26 @@
       </div>
 
       <div class="dim-row">
-        <div>
-          <label>Ширина (px)</label>
-          <input type="number" id="targetWidth">
-        </div>
-        <div>
-          <label>Высота (px)</label>
-          <input type="number" id="targetHeight">
-        </div>
+        <div><label>Ширина (px)</label><input type="number" id="targetWidth"></div>
+        <div><label>Высота (px)</label><input type="number" id="targetHeight"></div>
       </div>
 
       <div class="checkbox-row">
         <input type="checkbox" id="keepAspect" checked>
         <label for="keepAspect">Сохранять пропорции</label>
+      </div>
+
+      <div style="width:100%;">
+        <label>Преднастройки размера</label>
+        <div class="preset-row" id="presetRow">
+          <button class="preset-btn" data-w="0" data-h="0">Оригинал</button>
+          <button class="preset-btn" data-w="500" data-h="500">500×500</button>
+          <button class="preset-btn" data-w="800" data-h="800">800×800</button>
+          <button class="preset-btn" data-w="1000" data-h="1000">1000×1000</button>
+          <button class="preset-btn" data-w="1920" data-h="1080">1920×1080</button>
+          <button class="preset-btn" data-w="1280" data-h="720">1280×720</button>
+          <button class="preset-btn" data-w="1080" data-h="1920">1080×1920</button>
+        </div>
       </div>
 
       <div style="width:100%;">
@@ -145,144 +186,336 @@
           <option value="stretch">Растянуть</option>
         </select>
       </div>
-    </div>
 
-    <div class="preview">
-      <div>
-        <h3>До</h3>
-        <img id="beforeImg">
-        <p class="size-tag">Размер: <span id="beforeSize">—</span></p>
-      </div>
-
-      <div>
-        <h3>После</h3>
-        <img id="afterImg">
-        <p class="size-tag">Размер: <span id="afterSize">—</span></p>
+      <div style="width:100%;">
+        <label>Формат вывода</label>
+        <div class="format-row">
+          <div class="fmt-btn active" data-fmt="image/jpeg">JPG</div>
+          <div class="fmt-btn" data-fmt="image/png">PNG</div>
+          <div class="fmt-btn" data-fmt="image/webp">WebP</div>
+        </div>
       </div>
     </div>
 
-    <div class="actions" style="margin-top: 20px;">
-      <button id="downloadBtn" class="primary" disabled>Скачать JPG</button>
-      <button id="resetBtn">Сброс</button>
+    <!-- одиночный режим: превью -->
+    <div id="singleMode">
+      <div class="preview">
+        <div>
+          <h3>До</h3>
+          <img id="beforeImg" alt="">
+          <p class="size-tag">Размер: <span id="beforeSize">—</span></p>
+        </div>
+        <div>
+          <h3>После</h3>
+          <img id="afterImg" alt="">
+          <p class="size-tag">
+            <span id="afterSize">—</span>
+            <span id="savingPct" style="margin-left:8px;font-weight:700;"></span>
+          </p>
+        </div>
+      </div>
+      <div class="actions" style="margin-top:20px;">
+        <button id="downloadBtn" class="primary" disabled>Скачать</button>
+        <button id="resetBtn">Сброс</button>
+      </div>
+    </div>
+
+    <!-- пакетный режим -->
+    <div id="batchMode" style="display:none;">
+      <div class="batch-list" id="batchList"></div>
+      <div class="actions" style="margin-top:20px;">
+        <button id="batchDownloadBtn" class="primary" disabled>Скачать ZIP</button>
+        <button id="batchResetBtn">Сброс</button>
+      </div>
+    </div>
+
+    <!-- история -->
+    <div class="history-section" id="historySection" style="display:none;">
+      <h2>История</h2>
+      <div class="history-list" id="historyList"></div>
     </div>
   </main>
 
   <footer>imgtools</footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
-    const fileInput = document.getElementById('fileInput');
+    const dropZone     = document.getElementById('dropZone');
+    const fileInput    = document.getElementById('fileInput');
     const qualityInput = document.getElementById('quality');
     const qualityValue = document.getElementById('qualityValue');
-    const targetWidth = document.getElementById('targetWidth');
+    const targetWidth  = document.getElementById('targetWidth');
     const targetHeight = document.getElementById('targetHeight');
-    const resizeMode = document.getElementById('resizeMode');
-    const keepAspect = document.getElementById('keepAspect');
-    const beforeImg = document.getElementById('beforeImg');
-    const afterImg = document.getElementById('afterImg');
-    const beforeSize = document.getElementById('beforeSize');
-    const afterSize = document.getElementById('afterSize');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const resetBtn = document.getElementById('resetBtn');
+    const resizeMode   = document.getElementById('resizeMode');
+    const keepAspect   = document.getElementById('keepAspect');
+    const singleMode   = document.getElementById('singleMode');
+    const batchMode    = document.getElementById('batchMode');
+    const beforeImg    = document.getElementById('beforeImg');
+    const afterImg     = document.getElementById('afterImg');
+    const beforeSize   = document.getElementById('beforeSize');
+    const afterSize    = document.getElementById('afterSize');
+    const savingPct    = document.getElementById('savingPct');
+    const downloadBtn  = document.getElementById('downloadBtn');
+    const resetBtn     = document.getElementById('resetBtn');
+    const batchList    = document.getElementById('batchList');
+    const batchDownloadBtn = document.getElementById('batchDownloadBtn');
+    const batchResetBtn    = document.getElementById('batchResetBtn');
+    const historySection   = document.getElementById('historySection');
+    const historyList      = document.getElementById('historyList');
 
-    let originalFile = null;
+    let currentFmt   = 'image/jpeg';
+    let fmtExt       = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+    let originalFile  = null;
     let originalImage = null;
-    let outputBlob = null;
-    let outputUrl = null;
+    let outputUrl     = null;
+    let outputBlob    = null;
 
-    function formatBytes(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    // ── формат ──
+    document.querySelectorAll('.fmt-btn').forEach(b => {
+      b.onclick = () => {
+        document.querySelectorAll('.fmt-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        currentFmt = b.dataset.fmt;
+        downloadBtn.textContent = 'Скачать ' + b.textContent;
+        recompress();
+      };
+    });
+
+    // ── drag & drop ──
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    });
+    fileInput.onchange = e => { if (e.target.files.length) handleFiles(e.target.files); };
+
+    function handleFiles(files) {
+      if (files.length === 1) {
+        singleMode.style.display = '';
+        batchMode.style.display = 'none';
+        loadSingle(files[0]);
+      } else {
+        singleMode.style.display = 'none';
+        batchMode.style.display = '';
+        loadBatch(Array.from(files));
+      }
+    }
+
+    // ── одиночный режим ──
+    function loadSingle(file) {
+      originalFile = file;
+      const objectUrl = URL.createObjectURL(file);
+      beforeSize.textContent = formatBytes(file.size);
+      const img = new Image();
+      img.onload = () => {
+        originalImage = img;
+        beforeImg.src = objectUrl;
+        targetWidth.value  = img.naturalWidth;
+        targetHeight.value = img.naturalHeight;
+        recompress();
+      };
+      img.src = objectUrl;
     }
 
     function recompress() {
       if (!originalImage) return;
-
-      const w = parseInt(targetWidth.value) || originalImage.naturalWidth;
+      const w = parseInt(targetWidth.value)  || originalImage.naturalWidth;
       const h = parseInt(targetHeight.value) || originalImage.naturalHeight;
-      const mode = resizeMode.value;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-
-      ctx.clearRect(0, 0, w, h);
-
-      if (mode === 'stretch') {
-        ctx.drawImage(originalImage, 0, 0, w, h);
-      } else {
-        const imgRatio = originalImage.naturalWidth / originalImage.naturalHeight;
-        const targetRatio = w / h;
-        let drawW, drawH, drawX, drawY;
-
-        if (mode === 'cover') {
-          if (imgRatio > targetRatio) {
-            drawH = h; drawW = h * imgRatio;
-            drawX = (w - drawW) / 2; drawY = 0;
-          } else {
-            drawW = w; drawH = w / imgRatio;
-            drawX = 0; drawY = (h - drawH) / 2;
-          }
-        } else {
-          if (imgRatio > targetRatio) {
-            drawW = w; drawH = w / imgRatio;
-            drawX = 0; drawY = (h - drawH) / 2;
-          } else {
-            drawH = h; drawW = h * imgRatio;
-            drawX = (w - drawW) / 2; drawY = 0;
-          }
-        }
-        ctx.drawImage(originalImage, drawX, drawY, drawW, drawH);
-      }
-
-      canvas.toBlob((blob) => {
-        if (!blob) return;
+      processImage(originalImage, w, h, resizeMode.value, currentFmt, qualityInput.value / 100, (blob) => {
+        const newUrl = URL.createObjectURL(blob);
+        afterImg.src = newUrl;
         if (outputUrl) URL.revokeObjectURL(outputUrl);
+        outputUrl  = newUrl;
         outputBlob = blob;
-        outputUrl = URL.createObjectURL(blob);
-        afterImg.src = outputUrl;
         afterSize.textContent = formatBytes(blob.size);
+        const orig = originalFile.size;
+        const pct  = Math.round((1 - blob.size / orig) * 100);
+        if (pct > 0) {
+          savingPct.textContent = `\u2212${pct}%`;
+          savingPct.style.color = pct >= 30 ? '#4caf50' : pct >= 10 ? 'var(--accent)' : '#ff4d6d';
+        } else {
+          savingPct.textContent = `+${Math.abs(pct)}%`;
+          savingPct.style.color = '#ff4d6d';
+        }
         downloadBtn.disabled = false;
-      }, 'image/jpeg', qualityInput.value / 100);
+      });
     }
 
-    fileInput.onchange = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      originalFile = file;
-      beforeImg.src = URL.createObjectURL(file);
-      beforeSize.textContent = formatBytes(file.size);
-
-      const img = new Image();
-      img.onload = () => {
-        originalImage = img;
-        targetWidth.value = img.naturalWidth;
-        targetHeight.value = img.naturalHeight;
+    // ── преднастройки размера ──
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const pw = parseInt(btn.dataset.w);
+        const ph = parseInt(btn.dataset.h);
+        if (pw === 0) {
+          // Оригинал
+          if (originalImage) {
+            targetWidth.value  = originalImage.naturalWidth;
+            targetHeight.value = originalImage.naturalHeight;
+          } else {
+            targetWidth.value  = '';
+            targetHeight.value = '';
+          }
+        } else {
+          targetWidth.value  = pw;
+          targetHeight.value = ph;
+          // Снимаем keepAspect — у преднастроек свои пропорции
+          keepAspect.checked = false;
+        }
         recompress();
       };
-      img.src = beforeImg.src;
-    };
+    });
+
+    // Сбрасываем активную преднастройку если пользователь вручную меняет размер
+    function clearActivePreset() {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    }
 
     [targetWidth, targetHeight, resizeMode, qualityInput].forEach(el => {
       el.oninput = () => {
+        if (el === targetWidth || el === targetHeight) clearActivePreset();
         if (el === qualityInput) qualityValue.textContent = qualityInput.value + '%';
         if (keepAspect.checked && originalImage) {
-          if (el === targetWidth) targetHeight.value = Math.round(targetWidth.value / (originalImage.naturalWidth / originalImage.naturalHeight));
-          if (el === targetHeight) targetWidth.value = Math.round(targetHeight.value * (originalImage.naturalWidth / originalImage.naturalHeight));
+          const ratio = originalImage.naturalWidth / originalImage.naturalHeight;
+          if (el === targetWidth)  targetHeight.value = Math.round(+targetWidth.value / ratio);
+          if (el === targetHeight) targetWidth.value  = Math.round(+targetHeight.value * ratio);
         }
         recompress();
       };
     });
 
     downloadBtn.onclick = () => {
+      const ext  = fmtExt[currentFmt];
+      const base = originalFile.name.replace(/\.[^.]+$/, '');
       const a = document.createElement('a');
       a.href = outputUrl;
-      a.download = 'imgtools_' + originalFile.name.split('.')[0] + '.jpg';
+      a.download = `imgtools_${base}.${ext}`;
+      a.click();
+      addHistory(originalFile.name, originalFile.size, outputBlob.size);
+    };
+    resetBtn.onclick = () => location.reload();
+
+    // ── пакетный режим ──
+    let batchBlobs = [];
+
+    async function loadBatch(files) {
+      batchList.innerHTML = '';
+      batchBlobs = [];
+      batchDownloadBtn.disabled = true;
+
+      const w = parseInt(targetWidth.value)  || null;
+      const h = parseInt(targetHeight.value) || null;
+
+      const items = files.map((file, i) => {
+        const el = document.createElement('div');
+        el.className = 'batch-item';
+        el.innerHTML = `
+          <span class="bi-name">${file.name}</span>
+          <span class="bi-before">${formatBytes(file.size)}</span>
+          <span class="bi-after bi-saving-pct" id="bi${i}">обработка…</span>
+        `;
+        batchList.appendChild(el);
+        return el;
+      });
+
+      await Promise.all(files.map((file, i) => new Promise(resolve => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const tw = w || img.naturalWidth;
+          const th = h || img.naturalHeight;
+          processImage(img, tw, th, resizeMode.value, currentFmt, qualityInput.value / 100, (blob) => {
+            batchBlobs[i] = { blob, name: file.name.replace(/\.[^.]+$/, '') + '.' + fmtExt[currentFmt] };
+            const pct = Math.round((1 - blob.size / file.size) * 100);
+            const span = document.getElementById('bi' + i);
+            span.textContent = formatBytes(blob.size) + (pct > 0 ? `  −${pct}%` : `  +${Math.abs(pct)}%`);
+            span.style.color = pct >= 20 ? '#4caf50' : pct >= 0 ? 'var(--accent)' : '#ff4d6d';
+            addHistory(file.name, file.size, blob.size);
+            URL.revokeObjectURL(url);
+            resolve();
+          });
+        };
+        img.src = url;
+      })));
+
+      batchDownloadBtn.disabled = false;
+    }
+
+    batchDownloadBtn.onclick = async () => {
+      const zip = new JSZip();
+      batchBlobs.forEach(item => { if (item) zip.file(item.name, item.blob); });
+      const content = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = 'imgtools_batch.zip';
       a.click();
     };
+    batchResetBtn.onclick = () => location.reload();
 
-    resetBtn.onclick = () => location.reload();
+    // ── общая обработка ──
+    function processImage(img, w, h, mode, fmt, quality, cb) {
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      if (mode === 'stretch') {
+        ctx.drawImage(img, 0, 0, w, h);
+      } else {
+        const ir = img.naturalWidth / img.naturalHeight;
+        const tr = w / h;
+        let dw, dh, dx, dy;
+        if (mode === 'cover') {
+          if (ir > tr) { dh=h; dw=h*ir; dx=(w-dw)/2; dy=0; }
+          else         { dw=w; dh=w/ir; dx=0; dy=(h-dh)/2; }
+        } else {
+          if (ir > tr) { dw=w; dh=w/ir; dx=0; dy=(h-dh)/2; }
+          else         { dh=h; dw=h*ir; dx=(w-dw)/2; dy=0; }
+        }
+        ctx.drawImage(img, dx, dy, dw, dh);
+      }
+      canvas.toBlob(blob => {
+        cb(blob);
+      }, fmt, quality);
+    }
+
+    // ── история ──
+    const HIST_KEY = 'it-history';
+
+    function addHistory(name, sizeBefore, sizeAfter) {
+      let hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+      hist.unshift({ name, sizeBefore, sizeAfter, ts: Date.now() });
+      hist = hist.slice(0, 5);
+      localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+      if (!hist.length) { historySection.style.display = 'none'; return; }
+      historySection.style.display = '';
+      historyList.innerHTML = hist.map(h => {
+        const pct = Math.round((1 - h.sizeAfter / h.sizeBefore) * 100);
+        const col = pct >= 20 ? '#4caf50' : pct >= 0 ? 'var(--accent)' : '#ff4d6d';
+        return `<div class="hist-item">
+          <span class="hist-name">${h.name}</span>
+          <span class="hist-sizes">${formatBytes(h.sizeBefore)} → ${formatBytes(h.sizeAfter)}</span>
+          <span class="hist-pct" style="color:${col}">${pct > 0 ? '−' : '+'}${Math.abs(pct)}%</span>
+        </div>`;
+      }).join('');
+    }
+
+    renderHistory();
+
+    function formatBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+      return (b/1048576).toFixed(2) + ' MB';
+    }
   </script>
+  <script src="settings.js"></script>
+  <script>if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");</script>
 </body>
 </html>
