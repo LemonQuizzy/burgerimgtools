@@ -5,17 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EXIF Cleaner — imgtools</title>
   <link rel="stylesheet" href="common.css">
-  <script>
-    (function(){
-      var t = localStorage.getItem("it-theme") || "dark";
-      var a = localStorage.getItem("it-accent") || "#c8ff00";
-      document.documentElement.setAttribute("data-theme", t);
-      document.documentElement.style.setProperty("--accent", a);
-      var r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
-      document.documentElement.style.setProperty("--accent-dim","rgba("+r+","+g+","+b+",0.12)");
-    })();
-  </script>
+  <script src="theme-init.js"></script>
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <style>
     .section-divider {
       border: none;
@@ -31,7 +25,7 @@
       <a href="index.html">Главная</a>
       <a href="batchcomp.html">Компрессор</a>
       <a href="exif.html" class="active">EXIF</a>
-      <a href="imgconv.html">Фото</a>
+      <a href="imgconv.html">Конвертер</a>
     </nav>
   </header>
 
@@ -39,8 +33,8 @@
     <h1>EXIF Cleaner & Editor</h1>
     <p>Просмотр и редактирование метаданных. Поддерживается удаление GPS и изменение даты.</p>
 
-    <label for="fileInput">Выбери изображение (JPG/RAW)</label>
-    <input type="file" id="fileInput" accept="image/jpeg,image/x-canon-cr2,image/x-nikon-nef,image/x-sony-arw">
+    <label for="fileInput">Выбери JPG-изображение</label>
+    <input type="file" id="fileInput" accept="image/jpeg">
 
     <hr class="section-divider">
 
@@ -66,136 +60,166 @@
       <button id="gpsBtn" disabled>Удалить GPS</button>
       <button id="allBtn" disabled>Удалить всё</button>
       <button id="saveBtn" class="primary" disabled>Скачать результат</button>
+      <button id="toCompBtn" class="handoff-btn" disabled>В компрессор →</button>
+      <button id="toConvBtn" class="handoff-btn" disabled>В конвертер →</button>
       <button id="resetBtn">Сброс</button>
     </div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <p style="margin-top:16px"><small>«Удалить всё» убирает EXIF, XMP, IPTC и комментарии. Цветовой профиль сохраняется.</small></p>
   </main>
 
   <footer>imgtools</footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/piexifjs/piexif.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
+  <script src="handoff.js"></script>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const metaBody  = document.getElementById('metaBody');
-    const dateInput = document.getElementById('dateInput');
-    const gpsBtn    = document.getElementById('gpsBtn');
-    const allBtn    = document.getElementById('allBtn');
-    const saveBtn   = document.getElementById('saveBtn');
-    const resetBtn  = document.getElementById('resetBtn');
+    const $ = id => document.getElementById(id);
+    const fileInput = $('fileInput'), metaBody = $('metaBody'), dateInput = $('dateInput'),
+          gpsBtn = $('gpsBtn'), allBtn = $('allBtn'), saveBtn = $('saveBtn'), resetBtn = $('resetBtn'), statusEl = $('status');
 
-    let dataURL = null;
-    let originalFileName = 'image.jpg';
-    let exifRemoved = false; // флаг: после allBtn piexif.load больше не работает
+    let dataURL = null, originalFileName = 'image.jpg', exifRemoved = false;
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const say = (msg, err) => { statusEl.textContent = msg; statusEl.classList.toggle('error', !!err); };
+    const emptyExif = () => ({ '0th': {}, Exif: {}, GPS: {}, Interop: {}, '1st': {}, thumbnail: null });
+    const loadExif = () => { try { return piexif.load(dataURL); } catch (e) { return null; } };
+
+    function readAsDataURL(f) {
+      return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(f); });
+    }
+
+    // Вырезает EXIF/XMP (APP1), IPTC/Photoshop (APP13), прочие APPn и COM; оставляет JFIF, ICC (APP2), Adobe (APP14)
+    function stripJpeg(buf) {
+      const u = new Uint8Array(buf);
+      if (u[0] !== 0xFF || u[1] !== 0xD8) throw new Error('это не JPEG');
+      const out = [u.subarray(0, 2)];
+      let p = 2;
+      while (p < u.length && u[p] === 0xFF) {
+        const m = u[p + 1];
+        if (m === 0xFF) { p++; continue; }
+        if (m === 0xDA) { out.push(u.subarray(p)); break; }
+        if (m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { out.push(u.subarray(p, p + 2)); p += 2; continue; }
+        const len = (u[p + 2] << 8) | u[p + 3];
+        const drop = (m >= 0xE1 && m <= 0xEF && m !== 0xE2 && m !== 0xEE) || m === 0xFE;
+        if (!drop) out.push(u.subarray(p, p + 2 + len));
+        p += 2 + len;
+      }
+      return new Blob(out, { type: 'image/jpeg' });
+    }
+
+    function setDateField(d) {
+      const pad = n => String(n).padStart(2, '0');
+      if (d instanceof Date) {
+        dateInput.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } else {
+        dateInput.value = String(d).replace(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}:\d{2}).*/, '$1-$2-$3T$4');
+      }
+    }
 
     fileInput.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
+      if (file.type !== 'image/jpeg') { say('Нужен файл JPG. Для других форматов используй конвертер.', true); return; }
       originalFileName = file.name;
       exifRemoved = false;
+      dateInput.value = '';
+      say('');
       dataURL = await readAsDataURL(file);
-
+      saveBtn.disabled = false;
+      allBtn.disabled = false;
+      gpsBtn.disabled = false;
+      toCompBtn.disabled = false;
+      toConvBtn.disabled = false;
       try {
         const exif = await exifr.parse(file);
         renderMeta(exif);
-
-        if (exif && exif.DateTimeOriginal) {
-          // exifr возвращает Date-объект или строку вида "2024:05:01 12:30:00"
-          let d = exif.DateTimeOriginal;
-          if (d instanceof Date) {
-            // форматируем в datetime-local: "YYYY-MM-DDTHH:MM"
-            const pad = n => String(n).padStart(2, '0');
-            dateInput.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-          } else {
-            // строка "2024:05:01 12:30:00" → "2024-05-01T12:30"
-            dateInput.value = String(d).replace(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}:\d{2}).*/, '$1-$2-$3T$4');
-          }
-        }
-
-        gpsBtn.disabled = false;
-        allBtn.disabled = false;
-        saveBtn.disabled = false;
+        if (exif && exif.DateTimeOriginal) setDateField(exif.DateTimeOriginal);
       } catch (err) {
         metaBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">Метаданные не найдены</td></tr>';
-        saveBtn.disabled = false; // всё равно можно скачать без EXIF
       }
     };
 
     function renderMeta(d) {
-      if (!d) {
-        metaBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">EXIF не найден</td></tr>';
-        return;
-      }
-      let dateStr = '—';
-      if (d.DateTimeOriginal instanceof Date) {
-        dateStr = d.DateTimeOriginal.toLocaleString('ru');
-      } else if (d.DateTimeOriginal) {
-        dateStr = String(d.DateTimeOriginal);
-      }
+      if (!d) { metaBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">EXIF не найден</td></tr>'; return; }
+      const dt = d.DateTimeOriginal instanceof Date ? d.DateTimeOriginal.toLocaleString('ru') : (d.DateTimeOriginal ? String(d.DateTimeOriginal) : '—');
+      const cam = ((d.Make || '') + ' ' + (d.Model || '')).trim() || '—';
+      const gps = d.latitude != null ? d.latitude.toFixed(4) + ', ' + d.longitude.toFixed(4) : '—';
       metaBody.innerHTML = `
-        <tr><td>Камера</td><td>${(d.Make || '') + ' ' + (d.Model || '—')}</td></tr>
-        <tr><td>Дата</td><td>${dateStr}</td></tr>
-        <tr><td>Программа</td><td>${d.Software || '—'}</td></tr>
-        <tr><td>GPS</td><td>${d.latitude != null ? d.latitude.toFixed(4) + ', ' + d.longitude.toFixed(4) : '—'}</td></tr>
-      `;
+        <tr><td>Камера</td><td>${esc(cam)}</td></tr>
+        <tr><td>Дата</td><td>${esc(dt)}</td></tr>
+        <tr><td>Программа</td><td>${esc(d.Software || '—')}</td></tr>
+        <tr><td>GPS</td><td>${esc(gps)}</td></tr>`;
     }
 
     gpsBtn.onclick = () => {
+      const ex = loadExif();
+      if (!ex) { say('В файле нет EXIF, GPS удалять нечего.'); return; }
       try {
-        const ex = piexif.load(dataURL);
         ex.GPS = {};
         dataURL = piexif.insert(piexif.dump(ex), dataURL);
-        alert('GPS удалён');
-      } catch(e) {
-        alert('Не удалось удалить GPS: ' + e.message);
-      }
+        say('GPS удалён. Нажми «Скачать результат».');
+      } catch (err) { say('Не удалось удалить GPS: ' + err.message, true); }
     };
 
-    allBtn.onclick = () => {
+    allBtn.onclick = async () => {
       try {
-        dataURL = piexif.remove(dataURL);
+        const buf = await (await fetch(dataURL)).arrayBuffer();
+        dataURL = await readAsDataURL(stripJpeg(buf));
         exifRemoved = true;
         gpsBtn.disabled = true;
         allBtn.disabled = true;
-        metaBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">Все данные удалены</td></tr>';
-        alert('EXIF очищен');
-      } catch(e) {
-        alert('Ошибка: ' + e.message);
-      }
+        dateInput.value = '';
+        metaBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">Все метаданные удалены</td></tr>';
+        say('Метаданные удалены. Нажми «Скачать результат».');
+      } catch (err) { say('Ошибка: ' + err.message, true); }
     };
 
-    saveBtn.onclick = () => {
-      // Применяем дату только если EXIF ещё не был полностью удалён
+    function applyDateIfNeeded() {
       if (dateInput.value && !exifRemoved) {
         try {
-          const ex = piexif.load(dataURL);
-          if (!ex.Exif) ex.Exif = {};
-          // piexif ожидает формат "YYYY:MM:DD HH:MM:SS"
-          const piexifDate = dateInput.value
-            .replace('T', ' ')
-            .replace(/^(\d{4})-(\d{2})-(\d{2})/, '$1:$2:$3') + ':00';
-          ex.Exif[piexif.ExifIFD.DateTimeOriginal] = piexifDate;
+          const ex = loadExif() || emptyExif();
+          ex.Exif = ex.Exif || {};
+          ex.Exif[piexif.ExifIFD.DateTimeOriginal] = dateInput.value.replace('T', ' ').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$1:$2:$3') + ':00';
           dataURL = piexif.insert(piexif.dump(ex), dataURL);
-        } catch(e) {
-          alert('Не удалось записать дату: ' + e.message);
-        }
+          dateInput.value = '';
+        } catch (err) { say('Не удалось записать дату: ' + err.message, true); return false; }
       }
+      return true;
+    }
+
+    saveBtn.onclick = () => {
+      if (!applyDateIfNeeded()) return;
       const a = document.createElement('a');
       a.href = dataURL;
       a.download = 'cleaned-' + originalFileName;
       a.click();
     };
 
+    // ── передача результата в другие инструменты ──
+    async function sendResult(page) {
+      if (!dataURL || !applyDateIfNeeded()) return;
+      const blob = await (await fetch(dataURL)).blob();
+      const file = new File([blob], 'cleaned-' + originalFileName, { type: 'image/jpeg' });
+      await sendTo(page, [file]);
+    }
+    toCompBtn.onclick = () => sendResult('batchcomp.html');
+    toConvBtn.onclick = () => sendResult('imgconv.html');
+
     resetBtn.onclick = () => location.reload();
 
-    function readAsDataURL(f) {
-      return new Promise(r => {
-        const fr = new FileReader();
-        fr.onload = () => r(fr.result);
-        fr.readAsDataURL(f);
-      });
-    }
+    // ── приём файла из другого инструмента ──
+    takeHandoff().then(files => {
+      const jpgs = files && files.filter(f => f.type === 'image/jpeg');
+      if (jpgs && jpgs.length) {
+        const dt = new DataTransfer();
+        dt.items.add(jpgs[0]);
+        fileInput.files = dt.files;
+        say(jpgs.length > 1 ? 'Получено ' + jpgs.length + ' JPG — открыт первый (инструмент работает с одним файлом).' : 'Файл получен из другого инструмента.');
+        fileInput.onchange({ target: fileInput });
+      }
+    }).catch(() => {});
   </script>
   <script src="settings.js"></script>
   <script>if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");</script>

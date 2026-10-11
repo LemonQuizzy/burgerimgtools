@@ -1,51 +1,28 @@
-const CACHE = 'imgtools-v5';
-const ASSETS = [
-  './',
-  './index.html',
-  './batchcomp.html',
-  './exif.html',
-  './imgconv.html',
-  './common.css',
-  './settings.js',
-  './manifest.json',
-];
+const CACHE = 'imgtools-v9';
+const ASSETS = ['./','./index.html','./batchcomp.html','./exif.html','./imgconv.html','./docconv.html','./common.css','./settings.js','./theme-init.js','./handoff.js','./manifest.json','./icon-192.png','./icon-512.png'];
+const CROSS = ['cdn.jsdelivr.net','fonts.googleapis.com','fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE)
-      .then(c => Promise.allSettled(ASSETS.map(a => c.add(a))))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil(caches.open(CACHE).then(c => Promise.allSettled(ASSETS.map(a => c.add(a)))).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
-});
+const store = (req, r) => { if (r.ok || r.type === 'opaque') caches.open(CACHE).then(c => c.put(req, r.clone())); return r; };
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  const url = e.request.url;
-
-  if (url.includes('cdn.jsdelivr.net')) {
-    e.respondWith(
-      fetch(e.request).then(r => {
-        if (r.ok) caches.open(CACHE).then(c => c.put(e.request, r.clone()));
-        return r;
-      }).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-
-  if (url.startsWith(self.location.origin)) {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request).then(r => {
-        if (r.ok) caches.open(CACHE).then(c => c.put(e.request, r.clone()));
-        return r;
-      }))
-    );
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin === self.location.origin) {
+    // network-first: пользователь всегда получает свежую версию, офлайн — из кэша
+    e.respondWith(fetch(req).then(r => store(req, r)).catch(() => caches.match(req, { ignoreSearch: true })));
+  } else if (CROSS.includes(url.hostname)) {
+    // stale-while-revalidate для библиотек и шрифтов
+    e.respondWith(caches.match(req).then(hit => {
+      const net = fetch(req).then(r => store(req, r)).catch(() => hit);
+      return hit || net;
+    }));
   }
 });

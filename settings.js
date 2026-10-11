@@ -1,4 +1,8 @@
 (() => {
+  const ls = {
+    get: k => { try { return ls.get(k); } catch (e) { return null; } },
+    set: (k, v) => { try { ls.set(k, v); } catch (e) {} }
+  };
   const ACCENTS = [
     { color: '#c8ff00' },
     { color: '#00e5ff' },
@@ -33,13 +37,13 @@
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('it-theme', theme);
+    ls.set('it-theme', theme);
   }
 
   function applyAccent(hex) {
     document.documentElement.style.setProperty('--accent', hex);
     document.documentElement.style.setProperty('--accent-dim', `rgba(${hexToRgb(hex)}, 0.12)`);
-    localStorage.setItem('it-accent', hex);
+    ls.set('it-accent', hex);
   }
 
   function accentFg(hex) {
@@ -109,11 +113,13 @@
     header.appendChild(panel);
 
     const swatchWrap = panel.querySelector('#accentSwatches');
-    let currentAccent = localStorage.getItem('it-accent') || '#c8ff00';
-    let currentTheme  = localStorage.getItem('it-theme')  || 'dark';
+    let currentAccent = ls.get('it-accent') || '#c8ff00';
+    let currentTheme  = ls.get('it-theme')  || 'dark';
 
     ACCENTS.forEach(({ color }) => {
-      const sw = document.createElement('div');
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.setAttribute('aria-label', 'Акцент ' + color);
       sw.className = 'accent-swatch';
       sw.dataset.color = color; // всегда храним как #ffffff в data-атрибуте
       // Визуально свотч "#ffffff" на светлой теме показываем как чёрный
@@ -165,8 +171,8 @@
   }
 
   // Применяем до рендера — без мигания
-  const savedTheme  = localStorage.getItem('it-theme')  || 'dark';
-  let   savedAccent = localStorage.getItem('it-accent') || '#c8ff00';
+  const savedTheme  = ls.get('it-theme')  || 'dark';
+  let   savedAccent = ls.get('it-accent') || '#c8ff00';
   savedAccent = adaptAccentToTheme(savedAccent, savedTheme);
   applyTheme(savedTheme);
   applyAccent(savedAccent);

@@ -5,17 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Image Converter — imgtools</title>
   <link rel="stylesheet" href="common.css">
-  <script>
-    (function(){
-      var t = localStorage.getItem("it-theme") || "dark";
-      var a = localStorage.getItem("it-accent") || "#c8ff00";
-      document.documentElement.setAttribute("data-theme", t);
-      document.documentElement.style.setProperty("--accent", a);
-      var r=parseInt(a.slice(1,3),16),g=parseInt(a.slice(3,5),16),b=parseInt(a.slice(5,7),16);
-      document.documentElement.style.setProperty("--accent-dim","rgba("+r+","+g+","+b+",0.12)");
-    })();
-  </script>
+  <script src="theme-init.js"></script>
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <style>
     .drop-zone {
       border: 1px dashed var(--border-hover);
@@ -76,7 +70,7 @@
       <a href="index.html">Главная</a>
       <a href="batchcomp.html">Компрессор</a>
       <a href="exif.html">EXIF</a>
-      <a href="imgconv.html" class="active">Фото</a>
+      <a href="imgconv.html" class="active">Конвертер</a>
     </nav>
   </header>
 
@@ -99,11 +93,11 @@
       <div>
         <label>Конвертировать в</label>
         <div class="format-row">
-          <div class="fmt-btn active" data-fmt="image/jpeg" data-ext="jpg">JPG</div>
-          <div class="fmt-btn" data-fmt="image/png" data-ext="png">PNG</div>
-          <div class="fmt-btn" data-fmt="image/webp" data-ext="webp">WebP</div>
-          <div class="fmt-btn" data-fmt="image/avif" data-ext="avif">AVIF</div>
-          <div class="fmt-btn" data-fmt="image/bmp" data-ext="bmp">BMP</div>
+          <button type="button" class="fmt-btn active" data-fmt="image/jpeg" data-ext="jpg" aria-pressed="true">JPG</button>
+          <button type="button" class="fmt-btn" data-fmt="image/png" data-ext="png" aria-pressed="false">PNG</button>
+          <button type="button" class="fmt-btn" data-fmt="image/webp" data-ext="webp" aria-pressed="false">WebP</button>
+          <button type="button" class="fmt-btn" data-fmt="image/avif" data-ext="avif" aria-pressed="false">AVIF</button>
+          <button type="button" class="fmt-btn" data-fmt="image/bmp" data-ext="bmp" aria-pressed="false">BMP</button>
         </div>
         <div class="png-note" id="pngNote">PNG и BMP — без потерь, ползунок качества не влияет</div>
       </div>
@@ -118,42 +112,48 @@
     </div>
 
     <div class="file-list" id="fileList"></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
 
     <div class="actions" style="margin-top:20px;">
       <button id="convertBtn" class="primary" disabled>Конвертировать</button>
-      <button id="downloadAllBtn" disabled>Скачать ZIP</button>
+      <button id="downloadAllBtn" disabled>Скачать</button>
+      <button id="toCompBtn" class="handoff-btn" disabled>В компрессор →</button>
+      <button id="toExifBtn" class="handoff-btn" disabled>В EXIF →</button>
       <button id="resetBtn">Сброс</button>
     </div>
   </main>
 
   <footer>imgtools</footer>
 
+  <script src="handoff.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
-    const dropZone     = document.getElementById('dropZone');
-    const fileInput    = document.getElementById('fileInput');
-    const qualityInput = document.getElementById('quality');
-    const qualityValue = document.getElementById('qualityValue');
-    const fileList     = document.getElementById('fileList');
-    const convertBtn   = document.getElementById('convertBtn');
-    const downloadAllBtn = document.getElementById('downloadAllBtn');
-    const resetBtn     = document.getElementById('resetBtn');
-    const pngNote      = document.getElementById('pngNote');
+    const $ = id => document.getElementById(id);
+    const dropZone = $('dropZone'), fileInput = $('fileInput'), qualityInput = $('quality'), qualityValue = $('qualityValue'),
+          fileList = $('fileList'), convertBtn = $('convertBtn'), downloadAllBtn = $('downloadAllBtn'),
+          resetBtn = $('resetBtn'), pngNote = $('pngNote'), statusEl = $('status'),
+          toCompBtn = $('toCompBtn'), toExifBtn = $('toExifBtn');
 
-    let currentFmt = 'image/jpeg';
-    let currentExt = 'jpg';
-    let files = [];
-    let results = []; // { blob, name }
-    let singleUrl = null; // для отзыва blob URL одиночного файла
+    const CONCURRENCY = 3;
+    let currentFmt = 'image/jpeg', currentExt = 'jpg', files = [], results = [];
 
+    const say = (msg, err) => { statusEl.textContent = msg; statusEl.classList.toggle('error', !!err); };
     qualityInput.oninput = () => { qualityValue.textContent = qualityInput.value + '%'; };
+
+    // Проверяем, какие форматы браузер реально умеет кодировать (иначе toBlob молча вернёт PNG)
+    const probe = fmt => new Promise(res => {
+      const c = document.createElement('canvas'); c.width = c.height = 1;
+      c.toBlob(b => res(!!b && b.type === fmt), fmt);
+    });
+    document.querySelectorAll('.fmt-btn').forEach(async b => {
+      if (!(await probe(b.dataset.fmt))) { b.disabled = true; b.title = 'Этот браузер не поддерживает кодирование в ' + b.textContent; }
+    });
 
     document.querySelectorAll('.fmt-btn').forEach(b => {
       b.onclick = () => {
-        document.querySelectorAll('.fmt-btn').forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
-        currentFmt = b.dataset.fmt;
-        currentExt = b.dataset.ext;
+        document.querySelectorAll('.fmt-btn').forEach(x => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
+        b.classList.add('active'); b.setAttribute('aria-pressed', 'true');
+        currentFmt = b.dataset.fmt; currentExt = b.dataset.ext;
         const lossless = currentFmt === 'image/png' || currentFmt === 'image/bmp';
         pngNote.classList.toggle('visible', lossless);
         qualityInput.disabled = lossless;
@@ -167,97 +167,104 @@
       if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
     });
     fileInput.onchange = e => { if (e.target.files.length) loadFiles(e.target.files); };
+    document.addEventListener('paste', e => {
+      const imgs = Array.from(e.clipboardData ? e.clipboardData.files : []).filter(f => f.type.startsWith('image/'));
+      if (imgs.length) loadFiles(imgs);
+    });
 
     function loadFiles(f) {
-      files = Array.from(f);
+      files = Array.from(f).filter(x => x.type.startsWith('image/') || /\.(avif|heic|bmp)$/i.test(x.name));
       results = [];
-      fileList.innerHTML = '';
-      convertBtn.disabled = false;
+      fileList.textContent = '';
+      say('');
+      convertBtn.disabled = !files.length;
       downloadAllBtn.disabled = true;
-
+      toCompBtn.disabled = true;
+      toExifBtn.disabled = true;
+      downloadAllBtn.textContent = files.length > 1 ? 'Скачать ZIP' : 'Скачать';
       files.forEach((file, i) => {
-        const ext = file.name.split('.').pop().toUpperCase();
-        const el = document.createElement('div');
-        el.className = 'file-item';
-        el.innerHTML = `
-          <span class="fi-name">${file.name}</span>
-          <span class="fi-from">${ext}</span>
-          <span class="fi-arrow">→</span>
-          <span class="fi-to" id="fi${i}">ожидание</span>
-        `;
+        const el = document.createElement('div'); el.className = 'file-item';
+        const name = document.createElement('span'); name.className = 'fi-name'; name.textContent = file.name;
+        const from = document.createElement('span'); from.className = 'fi-from'; from.textContent = (file.name.split('.').pop() || '').toUpperCase() + ' · ' + formatBytes(file.size);
+        const arrow = document.createElement('span'); arrow.className = 'fi-arrow'; arrow.textContent = '→';
+        const to = document.createElement('span'); to.className = 'fi-to'; to.id = 'fi' + i; to.textContent = 'ожидание';
+        el.append(name, from, arrow, to);
         fileList.appendChild(el);
       });
     }
 
-    convertBtn.onclick = async () => {
-      convertBtn.disabled = true;
-      results = [];
-
-      await Promise.all(files.map((file, i) => new Promise(resolve => {
-        const span = document.getElementById('fi' + i);
-        span.textContent = 'обработка…';
-        span.className = 'fi-to';
-
+    function convertOne(file, i, fmt, ext, q) {
+      return new Promise(resolve => {
+        const span = $('fi' + i);
+        span.textContent = 'обработка…'; span.className = 'fi-to';
+        const fail = msg => { span.textContent = msg; span.className = 'fi-to error'; resolve(); };
         const img = new Image();
         const url = URL.createObjectURL(file);
+        img.onerror = () => { URL.revokeObjectURL(url); fail('не удалось прочитать'); };
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          canvas.width  = img.naturalWidth;
-          canvas.height = img.naturalHeight;
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
           const ctx = canvas.getContext('2d');
-
-          // Для JPG заливаем белым фоном (прозрачность → белый)
-          if (currentFmt === 'image/jpeg') {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-          }
+          if (fmt === 'image/jpeg' || fmt === 'image/bmp') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
           ctx.drawImage(img, 0, 0);
-
-          canvas.toBlob(blob => {
-            URL.revokeObjectURL(url);
-            if (!blob) {
-              span.textContent = 'ошибка';
-              span.className = 'fi-to error';
-              resolve(); return;
-            }
-            const baseName = file.name.replace(/\.[^.]+$/, '');
-            results[i] = { blob, name: baseName + '.' + currentExt };
-            span.textContent = currentExt.toUpperCase() + ' · ' + formatBytes(blob.size);
-            span.className = 'fi-to done';
-
-            // одиночный файл — сразу скачать
-            if (files.length === 1) {
-              if (singleUrl) URL.revokeObjectURL(singleUrl);
-              singleUrl = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = singleUrl;
-              a.download = results[i].name;
-              a.click();
-            }
-            resolve();
-          }, currentFmt, qualityInput.value / 100);
-        };
-        img.onerror = () => {
-          span.textContent = 'не удалось прочитать';
-          span.className = 'fi-to error';
           URL.revokeObjectURL(url);
-          resolve();
+          canvas.toBlob(blob => {
+            if (!blob || blob.type !== fmt) return fail('формат не поддерживается');
+            results[i] = { blob, name: file.name.replace(/\.[^.]+$/, '') + '.' + ext };
+            const pct = Math.round((1 - blob.size / file.size) * 100);
+            span.textContent = formatBytes(blob.size) + ' (' + (pct > 0 ? '−' + pct : '+' + Math.abs(pct)) + '%)';
+            span.className = 'fi-to done';
+            resolve();
+          }, fmt, q);
         };
         img.src = url;
-      })));
+      });
+    }
 
-      if (files.length > 1) downloadAllBtn.disabled = false;
+    convertBtn.onclick = async () => {
+      convertBtn.disabled = true; downloadAllBtn.disabled = true;
+      results = [];
+      const fmt = currentFmt, ext = currentExt, q = qualityInput.value / 100;
+      let next = 0;
+      const worker = async () => { while (next < files.length) { const i = next++; await convertOne(files[i], i, fmt, ext, q); } };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
+      const ok = results.filter(Boolean).length;
+      say(ok ? 'Готово: ' + ok + ' из ' + files.length : 'Ничего не удалось конвертировать', !ok);
+      downloadAllBtn.disabled = !ok;
+      toCompBtn.disabled = !ok;
+      toExifBtn.disabled = !results.some(r => r && r.blob.type === 'image/jpeg');
       convertBtn.disabled = false;
     };
 
-    downloadAllBtn.onclick = async () => {
-      const zip = new JSZip();
-      results.forEach(r => { if (r) zip.file(r.name, r.blob); });
-      const content = await zip.generateAsync({ type: 'blob' });
+    function save(blob, name) {
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(content);
-      a.download = 'imgtools_converted.zip';
-      a.click();
+      const url = URL.createObjectURL(blob);
+      a.href = url; a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
+    downloadAllBtn.onclick = async () => {
+      const done = results.filter(Boolean);
+      if (done.length === 1) return save(done[0].blob, done[0].name);
+      if (typeof JSZip === 'undefined') { say('Библиотека ZIP не загружена. Подключись к интернету и обнови страницу.', true); return; }
+      const zip = new JSZip(), used = new Set();
+      done.forEach(r => {
+        let n = r.name, k = 2;
+        const dot = n.lastIndexOf('.'), base = n.slice(0, dot), ext = n.slice(dot);
+        while (used.has(n.toLowerCase())) n = base + ' (' + k++ + ')' + ext;
+        used.add(n.toLowerCase());
+        zip.file(n, r.blob);
+      });
+      save(await zip.generateAsync({ type: 'blob' }), 'imgtools_converted.zip');
+    };
+
+    toCompBtn.onclick = () => {
+      const items = results.filter(Boolean).map(r => ({ blob: r.blob, name: r.name }));
+      if (items.length) sendTo('batchcomp.html', items);
+    };
+    toExifBtn.onclick = () => {
+      const items = results.filter(r => r && r.blob.type === 'image/jpeg').map(r => ({ blob: r.blob, name: r.name }));
+      if (items.length) sendTo('exif.html', items);
     };
 
     resetBtn.onclick = () => location.reload();
@@ -267,6 +274,9 @@
       if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
       return (b / 1048576).toFixed(2) + ' MB';
     }
+
+    // ── приём файлов из другого инструмента ──
+    takeHandoff().then(files => { if (files && files.length) loadFiles(files); }).catch(() => {});
   </script>
   <script src="settings.js"></script>
   <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
