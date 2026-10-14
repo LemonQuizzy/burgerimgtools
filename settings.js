@@ -1,7 +1,7 @@
 (() => {
   const ls = {
-    get: k => { try { return ls.get(k); } catch (e) { return null; } },
-    set: (k, v) => { try { ls.set(k, v); } catch (e) {} }
+    get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
   };
   const ACCENTS = [
     { color: '#c8ff00' },

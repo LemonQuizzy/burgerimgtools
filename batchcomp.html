@@ -131,12 +131,14 @@
 
     <label>Выбери изображение(я)</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" multiple>
+      <input type="file" id="fileInput" accept="image/*,.arw,.cr3,.nef" multiple>
       <div class="drop-zone-text">
         Перетащи сюда или <strong>нажми для выбора</strong><br>
-        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF и другие</span>
+        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF и другие · RAW: ARW, CR3, NEF</span>
       </div>
     </div>
+
+    <div class="status" id="rawNote" role="status" aria-live="polite" style="display:none;"></div>
 
     <hr class="section-divider">
 
@@ -236,6 +238,7 @@
   <footer>imgtools</footer>
 
   <script src="handoff.js"></script>
+  <script src="raw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
     const dropZone     = document.getElementById('dropZone');
@@ -292,15 +295,47 @@
     });
     fileInput.onchange = e => { if (e.target.files.length) handleFiles(e.target.files); };
 
-    function handleFiles(files) {
-      if (files.length === 1) {
+    // RAW → JPEG-файл из встроенного превью; «исходным» для сравнения размера остаётся сам RAW
+    const srcSize = f => f.rawSize || f.size;
+    const srcName = f => f.rawSource || f.name;
+    const rawNote = document.getElementById('rawNote');
+
+    function setRawNote(text, isErr) {
+      rawNote.style.display = text ? '' : 'none';
+      rawNote.textContent = text || '';
+      rawNote.classList.toggle('error', !!isErr);
+    }
+
+    async function prepareFiles(list) {
+      const out = [], ok = [], errors = [];
+      if (list.some(f => RawPreview.isRaw(f))) setRawNote('Извлекаю превью из RAW…');
+      for (const f of list) {
+        if (!RawPreview.isRaw(f)) { out.push(f); continue; }
+        try {
+          const r = await RawPreview.extract(f);
+          const jf = new File([r.blob], f.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+          jf.rawSource = f.name; jf.rawSize = f.size;
+          out.push(jf);
+          ok.push(f.name + ' — ' + r.width + '×' + r.height);
+        } catch (e) { errors.push(f.name + ': ' + e.message); }
+      }
+      if (errors.length) setRawNote('Не удалось обработать RAW — ' + errors.join('; ') + (ok.length ? '. Остальные файлы загружены.' : ''), true);
+      else if (ok.length) setRawNote('RAW: используется встроенное JPEG-превью камеры (' + ok.join('; ') + '). Разрешение результата ограничено этим превью, а не полным размером матрицы.');
+      else setRawNote('');
+      return out;
+    }
+
+    async function handleFiles(files) {
+      const list = await prepareFiles(Array.from(files));   // копия: FileList живой
+      if (!list.length) return;
+      if (list.length === 1) {
         singleMode.style.display = '';
         batchMode.style.display = 'none';
-        loadSingle(files[0]);
+        loadSingle(list[0]);
       } else {
         singleMode.style.display = 'none';
         batchMode.style.display = '';
-        loadBatch(Array.from(files));
+        loadBatch(list);
       }
     }
 
@@ -308,7 +343,7 @@
     function loadSingle(file) {
       originalFile = file;
       const objectUrl = URL.createObjectURL(file);
-      beforeSize.textContent = formatBytes(file.size);
+      beforeSize.textContent = formatBytes(srcSize(file)) + (file.rawSource ? ' (RAW)' : '');
       const img = new Image();
       img.onload = () => {
         originalImage = img;
@@ -331,7 +366,7 @@
         outputUrl  = newUrl;
         outputBlob = blob;
         afterSize.textContent = formatBytes(blob.size);
-        const orig = originalFile.size;
+        const orig = srcSize(originalFile);
         const pct  = Math.round((1 - blob.size / orig) * 100);
         if (pct > 0) {
           savingPct.textContent = `\u2212${pct}%`;
@@ -397,7 +432,7 @@
       a.href = outputUrl;
       a.download = `imgtools_${base}.${ext}`;
       a.click();
-      addHistory(originalFile.name, originalFile.size, outputBlob.size);
+      addHistory(srcName(originalFile), srcSize(originalFile), outputBlob.size);
     };
     toConvBtn.onclick = () => { if (outputBlob) sendTo('imgconv.html', [outputBlob]); };
     toExifBtn.onclick = () => { if (outputBlob) sendTo('exif.html', [outputBlob]); };
@@ -419,8 +454,8 @@
         const el = document.createElement('div');
         el.className = 'batch-item';
         el.innerHTML = `
-          <span class="bi-name">${escHtml(file.name)}</span>
-          <span class="bi-before">${formatBytes(file.size)}</span>
+          <span class="bi-name">${escHtml(srcName(file))}</span>
+          <span class="bi-before">${formatBytes(srcSize(file))}</span>
           <span class="bi-after bi-saving-pct" id="bi${i}">обработка…</span>
         `;
         batchList.appendChild(el);
@@ -435,11 +470,11 @@
           const th = h || img.naturalHeight;
           processImage(img, tw, th, resizeMode.value, currentFmt, qualityInput.value / 100, (blob) => {
             batchBlobs[i] = { blob, name: file.name.replace(/\.[^.]+$/, '') + '.' + fmtExt[currentFmt] };
-            const pct = Math.round((1 - blob.size / file.size) * 100);
+            const pct = Math.round((1 - blob.size / srcSize(file)) * 100);
             const span = document.getElementById('bi' + i);
             span.textContent = formatBytes(blob.size) + (pct > 0 ? `  −${pct}%` : `  +${Math.abs(pct)}%`);
             span.style.color = pct >= 20 ? '#4caf50' : pct >= 0 ? 'var(--accent)' : '#ff4d6d';
-            addHistory(file.name, file.size, blob.size);
+            addHistory(srcName(file), srcSize(file), blob.size);
             URL.revokeObjectURL(url);
             resolve();
           });
@@ -502,9 +537,6 @@
       hist = hist.slice(0, 5);
       localStorage.setItem(HIST_KEY, JSON.stringify(hist));
       renderHistory();
-
-    // ── приём файлов из другого инструмента ──
-    takeHandoff().then(files => { if (files && files.length) handleFiles(files); }).catch(() => {});
     }
 
     function renderHistory() {

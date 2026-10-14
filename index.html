@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>imgtools — сжать фото, удалить EXIF, конвертировать без загрузки на сервер</title>
-  <meta name="description" content="Сжатие, изменение размера, очистка EXIF и конвертация изображений. Файлы не покидают ваш браузер.">
+  <title>imgtools — сжать фото, удалить EXIF, конвертировать изображения и документы без загрузки на сервер</title>
+  <meta name="description" content="Сжатие (в том числе RAW), изменение размера, очистка EXIF, конвертация изображений и документов. Файлы не покидают ваш браузер.">
   <link rel="stylesheet" href="common.css">
   <script src="theme-init.js"></script>
   <link rel="manifest" href="manifest.json">
@@ -67,7 +67,6 @@
     <a href="batchcomp.html">Компрессор</a>
     <a href="exif.html">EXIF</a>
     <a href="imgconv.html">Конвертер</a>
-    <a href="docconv.html">Документы</a>
   </nav>
 </header>
 
@@ -82,9 +81,9 @@
     <div class="tool">
       <a href="batchcomp.html">Compress & Resize</a>
       <p>
-        Сжатие веса и изменение размеров (px). Режимы обрезки, вписывания и контроля качества JPG.
+        Сжатие веса и изменение размеров (px). Режимы обрезки, вписывания и контроля качества JPG. Понимает RAW: ARW, CR3, NEF.
       </p>
-      <div class="tag">Масштаб · Качество · JPG</div>
+      <div class="tag">Масштаб · Качество · JPG · RAW</div>
     </div>
 
     <div class="tool">
@@ -96,18 +95,11 @@
     </div>
 
     <div class="tool">
-      <a href="imgconv.html">Image Converter</a>
+      <a href="imgconv.html">Converter</a>
       <p>
-        Конвертация изображений между форматами: JPG, PNG, WebP, AVIF, BMP. Пакетная обработка и ZIP.
+        Конвертация изображений (JPG, PNG, WebP, AVIF, GIF, BMP) и документов (MD, TXT, HTML, DOCX, PDF). Тип файла определяется сам, доступные форматы подставляются автоматически. Пакетная обработка и ZIP.
       </p>
-      <div class="tag">JPG · PNG · WebP · AVIF</div>
-    </div>
-    <div class="tool">
-      <a href="docconv.html">Doc Converter</a>
-      <p>
-        Пакетная конвертация документов: MD, TXT, HTML и DOCX. Markdown рендерится в PDF и Word.
-      </p>
-      <div class="tag">MD · PDF · DOCX · HTML · TXT</div>
+      <div class="tag">Изображения · Документы · GIF</div>
     </div>
   </div>
 </main>

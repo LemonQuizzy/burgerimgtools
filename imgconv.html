@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Converter — imgtools</title>
+  <title>Converter — imgtools</title>
   <link rel="stylesheet" href="common.css">
   <script src="theme-init.js"></script>
   <link rel="manifest" href="manifest.json">
@@ -29,8 +29,16 @@
     }
     .drop-zone-text { font-family: var(--mono); font-size: 12px; color: var(--text-muted); pointer-events: none; }
     .drop-zone-text strong { color: var(--accent); }
+    .drop-zone-text .sub { font-size: 11px; color: var(--text-dim); }
+
+    [hidden] { display: none !important; }
 
     .section-divider { border: none; border-top: 1px solid var(--border); margin: 24px 0 20px; }
+
+    .fmt-hint { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+    .fmt-group + .fmt-group { margin-top: 20px; }
+    .fmt-group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .fmt-group-count { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
 
     .format-row { display: flex; gap: 4px; flex-wrap: wrap; }
     .fmt-btn {
@@ -40,27 +48,65 @@
       color: var(--text-muted); cursor: pointer; text-align: center;
       transition: all .15s; letter-spacing: .02em;
     }
-    .fmt-btn:hover { color: var(--text); border-color: var(--border-hover); }
+    .fmt-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border-hover); }
     .fmt-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .fmt-btn:disabled { opacity: .25; cursor: default; }
 
     .quality-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .quality-val { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+    .img-options { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    .checkbox-row { display: flex; align-items: center; gap: 8px; }
+    .checkbox-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+    .checkbox-row label { font-size: 12px; color: var(--text-muted); margin: 0; text-transform: none; letter-spacing: 0; cursor: pointer; }
+
+    .fmt-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 6px; display: none; }
+    .fmt-note.visible { display: block; }
 
     .file-list { display: flex; flex-direction: column; gap: 5px; margin-top: 16px; }
     .file-item {
       display: flex; align-items: center; gap: 10px;
       background: var(--surface-2); border: 1px solid var(--border);
       padding: 8px 12px; font-family: var(--mono); font-size: 12px;
+      transition: border-color .15s;
     }
+    .file-item.doc { cursor: pointer; }
+    .file-item.doc:hover { border-color: var(--border-hover); }
+    .file-item.selected { border-color: var(--accent); }
     .fi-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
     .fi-from { color: var(--text-dim); white-space: nowrap; }
     .fi-arrow { color: var(--text-dim); }
     .fi-to { white-space: nowrap; }
     .fi-to.done { color: var(--accent); }
     .fi-to.error { color: #ff4d6d; }
+    .fi-to.wait { color: var(--text-dim); }
 
-    .png-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 6px; display: none; }
-    .png-note.visible { display: block; }
+    .doc-preview { display: none; margin-top: 24px; width: 100%; }
+    .doc-preview.visible { display: flex; }
+    .doc-preview-col {
+      flex: 1 1 0; min-width: 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 20px 24px;
+      max-height: 480px;
+      overflow: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .doc-preview-col pre {
+      white-space: pre-wrap; word-break: break-word;
+      font-family: var(--mono); font-size: 12px; margin: 0;
+    }
+    .doc-preview-col h1, .doc-preview-col h2, .doc-preview-col h3 { margin: 14px 0 8px; }
+    .doc-preview-col p { color: var(--text); margin: 0 0 12px; }
+    .doc-preview-col img { max-width: 100%; }
+    .doc-preview-col pre, .doc-preview-col code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; }
+    .doc-preview-col pre { padding: 12px; overflow: auto; }
+    .doc-preview-col code { padding: 2px 5px; font-size: .9em; }
+    .doc-preview-col table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    .doc-preview-col th, .doc-preview-col td { border: 1px solid var(--border); padding: 6px 10px; font-size: 13px; }
+    .doc-preview-col blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 2px 14px; color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -75,48 +121,77 @@
   </header>
 
   <main class="container">
-    <h1>Image Converter</h1>
-    <p>Конвертация изображений без загрузки на сервер. Всё работает локально.</p>
+    <h1>Converter</h1>
+    <p>Конвертация изображений и документов без загрузки на сервер. Тип файла определяется автоматически — доступные форматы появятся после выбора файлов.</p>
 
     <label>Выбери файл(ы)</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" multiple>
+      <input type="file" id="fileInput" accept="image/*,.avif,.heic,.bmp,.md,.markdown,.txt,.html,.htm,.docx" multiple>
       <div class="drop-zone-text">
         Перетащи сюда или <strong>нажми для выбора</strong><br>
-        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF, BMP, AVIF и другие</span>
-      </div>
-    </div>
-
-    <hr class="section-divider">
-
-    <div style="display:flex;flex-direction:column;gap:16px;">
-      <div>
-        <label>Конвертировать в</label>
-        <div class="format-row">
-          <button type="button" class="fmt-btn active" data-fmt="image/jpeg" data-ext="jpg" aria-pressed="true">JPG</button>
-          <button type="button" class="fmt-btn" data-fmt="image/png" data-ext="png" aria-pressed="false">PNG</button>
-          <button type="button" class="fmt-btn" data-fmt="image/webp" data-ext="webp" aria-pressed="false">WebP</button>
-          <button type="button" class="fmt-btn" data-fmt="image/avif" data-ext="avif" aria-pressed="false">AVIF</button>
-          <button type="button" class="fmt-btn" data-fmt="image/bmp" data-ext="bmp" aria-pressed="false">BMP</button>
-        </div>
-        <div class="png-note" id="pngNote">PNG и BMP — без потерь, ползунок качества не влияет</div>
-      </div>
-
-      <div>
-        <div class="quality-row">
-          <label style="margin:0;">Качество</label>
-          <span class="quality-val" id="qualityValue">90%</span>
-        </div>
-        <input type="range" id="quality" min="1" max="100" value="90">
+        <span class="sub">Изображения: JPG, PNG, WebP, GIF, BMP, AVIF · Документы: MD, TXT, HTML, DOCX<br>Можно выбрать сразу несколько файлов разных типов</span>
       </div>
     </div>
 
     <div class="file-list" id="fileList"></div>
+
+    <hr class="section-divider">
+
+    <div class="fmt-hint" id="fmtHint">Форматы конвертации появятся здесь, как только ты выберешь файлы.</div>
+
+    <div class="fmt-group" id="imgGroup" hidden>
+      <div class="fmt-group-head">
+        <label>Изображения → конвертировать в</label>
+        <span class="fmt-group-count" id="imgCount"></span>
+      </div>
+      <div class="format-row" id="imgFormats">
+        <button type="button" class="fmt-btn active" data-fmt="image/jpeg" data-ext="jpg" aria-pressed="true">JPG</button>
+        <button type="button" class="fmt-btn" data-fmt="image/png" data-ext="png" aria-pressed="false">PNG</button>
+        <button type="button" class="fmt-btn" data-fmt="image/webp" data-ext="webp" aria-pressed="false">WebP</button>
+        <button type="button" class="fmt-btn" data-fmt="image/avif" data-ext="avif" aria-pressed="false">AVIF</button>
+        <button type="button" class="fmt-btn" data-fmt="image/gif" data-ext="gif" aria-pressed="false">GIF</button>
+        <button type="button" class="fmt-btn" data-fmt="image/bmp" data-ext="bmp" aria-pressed="false">BMP</button>
+      </div>
+      <div class="fmt-note" id="fmtNote"></div>
+
+      <div class="img-options">
+        <div>
+          <div class="quality-row">
+            <label style="margin:0;">Качество</label>
+            <span class="quality-val" id="qualityValue">90%</span>
+          </div>
+          <input type="range" id="quality" min="1" max="100" value="90">
+        </div>
+        <div class="checkbox-row" id="ditherRow" hidden>
+          <input type="checkbox" id="ditherChk" checked>
+          <label for="ditherChk">Дизеринг — плавнее градиенты и фото (файл станет больше)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="fmt-group" id="docGroup" hidden>
+      <div class="fmt-group-head">
+        <label>Документы → конвертировать в</label>
+        <span class="fmt-group-count" id="docCount"></span>
+      </div>
+      <div class="format-row" id="docFormats">
+        <button type="button" class="fmt-btn active" data-fmt="pdf" aria-pressed="true">PDF</button>
+        <button type="button" class="fmt-btn" data-fmt="docx" aria-pressed="false">DOCX</button>
+        <button type="button" class="fmt-btn" data-fmt="html" aria-pressed="false">HTML</button>
+        <button type="button" class="fmt-btn" data-fmt="txt" aria-pressed="false">TXT</button>
+        <button type="button" class="fmt-btn" data-fmt="md" aria-pressed="false">MD</button>
+      </div>
+    </div>
+
     <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <div class="doc-preview" id="docPreview">
+      <div class="doc-preview-col" id="previewCol"></div>
+    </div>
 
     <div class="actions" style="margin-top:20px;">
       <button id="convertBtn" class="primary" disabled>Конвертировать</button>
-      <button id="downloadAllBtn" disabled>Скачать</button>
+      <button id="downloadBtn" disabled>Скачать</button>
       <button id="toCompBtn" class="handoff-btn" disabled>В компрессор →</button>
       <button id="toExifBtn" class="handoff-btn" disabled>В EXIF →</button>
       <button id="resetBtn">Сброс</button>
@@ -126,116 +201,429 @@
   <footer>imgtools</footer>
 
   <script src="handoff.js"></script>
+  <script src="gifenc.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
     const $ = id => document.getElementById(id);
-    const dropZone = $('dropZone'), fileInput = $('fileInput'), qualityInput = $('quality'), qualityValue = $('qualityValue'),
-          fileList = $('fileList'), convertBtn = $('convertBtn'), downloadAllBtn = $('downloadAllBtn'),
-          resetBtn = $('resetBtn'), pngNote = $('pngNote'), statusEl = $('status'),
-          toCompBtn = $('toCompBtn'), toExifBtn = $('toExifBtn');
+    const dropZone = $('dropZone'), fileInput = $('fileInput'), fileList = $('fileList'),
+          fmtHint = $('fmtHint'), imgGroup = $('imgGroup'), docGroup = $('docGroup'),
+          imgCount = $('imgCount'), docCount = $('docCount'), fmtNote = $('fmtNote'),
+          qualityInput = $('quality'), qualityValue = $('qualityValue'),
+          ditherRow = $('ditherRow'), ditherChk = $('ditherChk'),
+          statusEl = $('status'), docPreview = $('docPreview'), previewCol = $('previewCol'),
+          convertBtn = $('convertBtn'), downloadBtn = $('downloadBtn'),
+          toCompBtn = $('toCompBtn'), toExifBtn = $('toExifBtn'), resetBtn = $('resetBtn');
 
     const CONCURRENCY = 3;
-    let currentFmt = 'image/jpeg', currentExt = 'jpg', files = [], results = [];
 
-    const say = (msg, err) => { statusEl.textContent = msg; statusEl.classList.toggle('error', !!err); };
-    qualityInput.oninput = () => { qualityValue.textContent = qualityInput.value + '%'; };
+    // Какие документы во что конвертируются. Расширение входного файла определяет набор вариантов.
+    const DOC_MAP = {
+      md:       ['pdf', 'docx', 'html', 'txt'],
+      markdown: ['pdf', 'docx', 'html', 'txt'],
+      txt:      ['md', 'pdf', 'docx', 'html'],
+      html:     ['md', 'pdf', 'docx', 'txt'],
+      htm:      ['md', 'pdf', 'docx', 'txt'],
+      docx:     ['md', 'pdf', 'html', 'txt']
+    };
+    const IMG_EXT = /\.(avif|heic|bmp)$/i;
+    const LOSSLESS = ['image/png', 'image/bmp', 'image/gif'];
 
-    // Проверяем, какие форматы браузер реально умеет кодировать (иначе toBlob молча вернёт PNG)
+    let items = [];                 // { id, file, kind: 'image'|'doc', ext, el, toEl, result: {blob,name}|null, text, html }
+    let imgTarget = { fmt: 'image/jpeg', ext: 'jpg' };
+    let docTarget = 'pdf';
+    let selectedId = null, uid = 0;
+    const imgSupported = {};        // mime → умеет ли браузер кодировать
+
+    const say = (msg, err) => { statusEl.textContent = msg || ''; statusEl.classList.toggle('error', !!err); };
+    const extOf = name => (name.split('.').pop() || '').toLowerCase();
+    const baseName = name => name.replace(/\.[^.]+$/, '');
+
+    // ── ленивая загрузка библиотек для документов (тяжёлые — тянем только когда нужны) ──
+    const LIBS = {
+      marked:   ['https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js'],
+      mammoth:  ['https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js'],
+      turndown: ['https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js'],
+      htmldocx: ['https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js'],
+      pdfmake:  ['https://cdn.jsdelivr.net/npm/pdfmake@0.2.9/build/pdfmake.min.js',
+                 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.9/build/vfs_fonts.js'],   // шрифты строго после pdfmake
+      h2p:      ['https://cdn.jsdelivr.net/npm/html-to-pdfmake@2.5.12/browser.js']
+    };
+    const libState = {};
+    const loadScript = src => new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res;
+      s.onerror = () => rej(new Error('не удалось загрузить ' + src.split('/').pop() + ' — проверь интернет'));
+      document.head.appendChild(s);
+    });
+    const need = name => libState[name] || (libState[name] =
+      LIBS[name].reduce((p, src) => p.then(() => loadScript(src)), Promise.resolve())
+        .catch(e => { delete libState[name]; throw e; }));
+
+    // ── какие форматы изображений реально умеет кодировать этот браузер ──
+    // (иначе toBlob молча вернёт PNG). GIF кодируем сами через gifenc.
     const probe = fmt => new Promise(res => {
+      if (fmt === 'image/gif') return res(typeof gifenc !== 'undefined');
       const c = document.createElement('canvas'); c.width = c.height = 1;
       c.toBlob(b => res(!!b && b.type === fmt), fmt);
     });
-    document.querySelectorAll('.fmt-btn').forEach(async b => {
-      if (!(await probe(b.dataset.fmt))) { b.disabled = true; b.title = 'Этот браузер не поддерживает кодирование в ' + b.textContent; }
-    });
+    const imgButtons = Array.from($('imgFormats').querySelectorAll('.fmt-btn'));
+    const docButtons = Array.from($('docFormats').querySelectorAll('.fmt-btn'));
+    Promise.all(imgButtons.map(async b => {
+      imgSupported[b.dataset.fmt] = await probe(b.dataset.fmt);
+      if (!imgSupported[b.dataset.fmt]) b.title = 'Этот браузер не поддерживает кодирование в ' + b.textContent;
+    })).then(refreshUI);
 
-    document.querySelectorAll('.fmt-btn').forEach(b => {
-      b.onclick = () => {
-        document.querySelectorAll('.fmt-btn').forEach(x => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
-        b.classList.add('active'); b.setAttribute('aria-pressed', 'true');
-        currentFmt = b.dataset.fmt; currentExt = b.dataset.ext;
-        const lossless = currentFmt === 'image/png' || currentFmt === 'image/bmp';
-        pngNote.classList.toggle('visible', lossless);
-        qualityInput.disabled = lossless;
-      };
+    // ── выбор формата ──
+    function setActive(buttons, btn) {
+      buttons.forEach(x => { x.classList.toggle('active', x === btn); x.setAttribute('aria-pressed', String(x === btn)); });
+    }
+    imgButtons.forEach(b => b.onclick = () => {
+      if (b.disabled) return;
+      imgTarget = { fmt: b.dataset.fmt, ext: b.dataset.ext };
+      items.forEach(i => { if (i.kind === 'image') i.result = null; });
+      refreshUI();
     });
+    docButtons.forEach(b => b.onclick = () => {
+      if (b.disabled) return;
+      docTarget = b.dataset.fmt;
+      items.forEach(i => { if (i.kind === 'doc') i.result = null; });
+      refreshUI();
+      const sel = items.find(i => i.id === selectedId);
+      if (sel) renderPreview(sel);
+    });
+    qualityInput.oninput = () => { qualityValue.textContent = qualityInput.value + '%'; };
 
+    // ── загрузка файлов ──
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
     dropZone.addEventListener('drop', e => {
       e.preventDefault(); dropZone.classList.remove('drag-over');
       if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
     });
-    fileInput.onchange = e => { if (e.target.files.length) loadFiles(e.target.files); };
+    fileInput.onchange = e => { if (e.target.files.length) { loadFiles(e.target.files); fileInput.value = ''; } };
     document.addEventListener('paste', e => {
       const imgs = Array.from(e.clipboardData ? e.clipboardData.files : []).filter(f => f.type.startsWith('image/'));
       if (imgs.length) loadFiles(imgs);
     });
 
-    function loadFiles(f) {
-      files = Array.from(f).filter(x => x.type.startsWith('image/') || /\.(avif|heic|bmp)$/i.test(x.name));
-      results = [];
-      fileList.textContent = '';
-      say('');
-      convertBtn.disabled = !files.length;
-      downloadAllBtn.disabled = true;
-      toCompBtn.disabled = true;
-      toExifBtn.disabled = true;
-      downloadAllBtn.textContent = files.length > 1 ? 'Скачать ZIP' : 'Скачать';
-      files.forEach((file, i) => {
-        const el = document.createElement('div'); el.className = 'file-item';
-        const name = document.createElement('span'); name.className = 'fi-name'; name.textContent = file.name;
-        const from = document.createElement('span'); from.className = 'fi-from'; from.textContent = (file.name.split('.').pop() || '').toUpperCase() + ' · ' + formatBytes(file.size);
-        const arrow = document.createElement('span'); arrow.className = 'fi-arrow'; arrow.textContent = '→';
-        const to = document.createElement('span'); to.className = 'fi-to'; to.id = 'fi' + i; to.textContent = 'ожидание';
-        el.append(name, from, arrow, to);
-        fileList.appendChild(el);
-      });
+    // Определяем тип файла: документ (по расширению) или изображение (по MIME / расширению)
+    function detect(file) {
+      if (DOC_MAP[extOf(file.name)]) return 'doc';
+      if (file.type.startsWith('image/') || IMG_EXT.test(file.name)) return 'image';
+      return null;
     }
 
-    function convertOne(file, i, fmt, ext, q) {
+    async function readDoc(item) {
+      if (item.ext === 'docx') {
+        await need('mammoth');
+        const buf = await item.file.arrayBuffer();
+        const h = await mammoth.convertToHtml({ arrayBuffer: buf });
+        const t = await mammoth.extractRawText({ arrayBuffer: buf });
+        item.html = h.value; item.text = t.value;
+      } else {
+        item.text = await item.file.text();
+        if (item.ext === 'html' || item.ext === 'htm') item.html = item.text;
+        else { await need('marked'); item.html = marked.parse(item.text); }
+      }
+    }
+
+    async function loadFiles(list) {
+      const files = Array.from(list);            // копия: FileList живой и обнуляется при сбросе input
+      const skipped = [];
+      say('Читаю файлы…');
+      for (const file of files) {
+        const kind = detect(file);
+        if (!kind) { skipped.push(file.name); continue; }
+        const item = { id: ++uid, file, kind, ext: extOf(file.name), result: null, text: '', html: '' };
+        if (kind === 'doc') {
+          try { await readDoc(item); }
+          catch (err) { skipped.push(file.name + ' (' + err.message + ')'); continue; }
+        }
+        addItem(item);
+      }
+      refreshUI();
+      const imgs = items.filter(i => i.kind === 'image').length, docs = items.length - imgs;
+      let msg = items.length
+        ? 'Загружено: ' + items.length + (imgs && docs ? ' (изображений: ' + imgs + ', документов: ' + docs + ')' : '') + '. Выбери формат и нажми «Конвертировать».'
+        : '';
+      if (skipped.length) msg += (msg ? ' ' : '') + 'Пропущено (неподдерживаемый формат или ошибка): ' + skipped.join(', ');
+      say(msg, !!skipped.length && !items.length);
+    }
+
+    function addItem(item) {
+      items.push(item);
+      const el = document.createElement('div');
+      el.className = 'file-item ' + item.kind;
+      const icon = document.createElement('span'); icon.textContent = item.kind === 'image' ? '🖼' : '📄';
+      const name = document.createElement('span'); name.className = 'fi-name'; name.textContent = item.file.name;
+      const from = document.createElement('span'); from.className = 'fi-from';
+      from.textContent = item.ext.toUpperCase() + ' · ' + formatBytes(item.file.size);
+      const arrow = document.createElement('span'); arrow.className = 'fi-arrow'; arrow.textContent = '→';
+      const to = document.createElement('span'); to.className = 'fi-to wait'; to.textContent = '…';
+      el.append(icon, name, from, arrow, to);
+      item.el = el; item.toEl = to;
+      if (item.kind === 'doc') {
+        el.addEventListener('click', () => selectItem(item));
+        fileList.appendChild(el);
+        selectItem(item);
+      } else {
+        fileList.appendChild(el);
+      }
+    }
+
+    function selectItem(item) {
+      selectedId = item.id;
+      items.forEach(q => q.el.classList.toggle('selected', q.id === item.id));
+      renderPreview(item);
+    }
+
+    // ── интерфейс: группы форматов, подписи строк, кнопки ──
+    function refreshUI() {
+      const imgs = items.filter(i => i.kind === 'image'), docs = items.filter(i => i.kind === 'doc');
+      fmtHint.hidden = items.length > 0;
+      imgGroup.hidden = !imgs.length;
+      docGroup.hidden = !docs.length;
+      imgCount.textContent = imgs.length ? 'файлов: ' + imgs.length : '';
+      docCount.textContent = docs.length ? 'файлов: ' + docs.length : '';
+
+      // изображения: недоступные в этом браузере форматы блокируем
+      imgButtons.forEach(b => { b.disabled = imgSupported[b.dataset.fmt] === false; });
+      let cur = imgButtons.find(b => b.dataset.fmt === imgTarget.fmt && !b.disabled) || imgButtons.find(b => !b.disabled);
+      if (cur) { imgTarget = { fmt: cur.dataset.fmt, ext: cur.dataset.ext }; setActive(imgButtons, cur); }
+      const lossless = LOSSLESS.includes(imgTarget.fmt), isGif = imgTarget.fmt === 'image/gif';
+      qualityInput.disabled = lossless;
+      ditherRow.hidden = !isGif;
+      fmtNote.textContent = isGif
+        ? 'GIF — палитра до 256 цветов, один кадр (у анимированного GIF берётся первый), ползунок качества не влияет'
+        : 'PNG и BMP — без потерь, ползунок качества не влияет';
+      fmtNote.classList.toggle('visible', lossless);
+
+      // документы: кнопка доступна, если хотя бы один загруженный документ умеет конвертироваться в этот формат
+      docButtons.forEach(b => { b.disabled = !docs.some(d => DOC_MAP[d.ext].includes(b.dataset.fmt)); });
+      const dcur = docButtons.find(b => b.dataset.fmt === docTarget && !b.disabled) || docButtons.find(b => !b.disabled);
+      if (dcur) { docTarget = dcur.dataset.fmt; setActive(docButtons, dcur); }
+
+      // подписи в строках файлов
+      items.forEach(i => {
+        if (i.result) return;
+        const can = i.kind === 'image' || DOC_MAP[i.ext].includes(docTarget);
+        i.toEl.textContent = !can ? '—' : (i.kind === 'image' ? imgTarget.ext : docTarget).toUpperCase();
+        i.toEl.className = 'fi-to wait';
+      });
+      convertBtn.disabled = !items.length;
+      updateButtons();
+    }
+
+    function updateButtons() {
+      const done = items.filter(i => i.result);
+      downloadBtn.disabled = !done.length;
+      downloadBtn.textContent = done.length > 1 ? 'Скачать ZIP' : 'Скачать';
+      toCompBtn.disabled = !done.some(i => i.kind === 'image');
+      toExifBtn.disabled = !done.some(i => i.kind === 'image' && i.result.blob.type === 'image/jpeg');
+    }
+
+    // ── GIF: квантизация в 256 цветов (gifenc) + опциональный дизеринг Флойда–Стейнберга ──
+    function gifDither(rgba, w, h, palette, ti) {
+      // Только непрозрачные цвета палитры; прозрачный индекс (ti) отдаём отдельно.
+      const pal = [];
+      palette.forEach((c, i) => { if (i !== ti) pal.push([i, c[0], c[1], c[2]]); });
+      const cache = new Int16Array(32768).fill(-1);          // кэш «цвет 5-5-5 → ближайший цвет палитры»
+      const nearest = (r, g, b) => {
+        const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+        const hit = cache[key];
+        if (hit >= 0) return hit;
+        const rr = (r & 0xF8) | 4, gg = (g & 0xF8) | 4, bb = (b & 0xF8) | 4;
+        let best = 0, bd = Infinity;
+        for (let k = 0; k < pal.length; k++) {
+          const p = pal[k], dr = p[1] - rr, dg = p[2] - gg, db = p[3] - bb;
+          const d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;   // зрение чувствительнее к зелёному
+          if (d < bd) { bd = d; best = k; }
+        }
+        return (cache[key] = best);
+      };
+      const out = new Uint8Array(w * h);
+      let eR = new Float32Array(w + 2), eG = new Float32Array(w + 2), eB = new Float32Array(w + 2);
+      let nR = new Float32Array(w + 2), nG = new Float32Array(w + 2), nB = new Float32Array(w + 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const o = (y * w + x) * 4;
+          if (ti >= 0 && rgba[o + 3] < 128) { out[y * w + x] = ti; continue; }
+          let r = rgba[o] + eR[x + 1], g = rgba[o + 1] + eG[x + 1], b = rgba[o + 2] + eB[x + 1];
+          r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
+          const p = pal[nearest(r | 0, g | 0, b | 0)];
+          out[y * w + x] = p[0];
+          const dr = r - p[1], dg = g - p[2], db = b - p[3];
+          eR[x + 2] += dr * 0.4375; nR[x] += dr * 0.1875; nR[x + 1] += dr * 0.3125; nR[x + 2] += dr * 0.0625;
+          eG[x + 2] += dg * 0.4375; nG[x] += dg * 0.1875; nG[x + 1] += dg * 0.3125; nG[x + 2] += dg * 0.0625;
+          eB[x + 2] += db * 0.4375; nB[x] += db * 0.1875; nB[x + 1] += db * 0.3125; nB[x + 2] += db * 0.0625;
+        }
+        let t = eR; eR = nR; nR = t; nR.fill(0);
+        t = eG; eG = nG; nG = t; nG.fill(0);
+        t = eB; eB = nB; nB = t; nB.fill(0);
+      }
+      return out;
+    }
+
+    function encodeGif(rgba, w, h, dither) {
+      const { GIFEncoder, quantize, applyPalette } = gifenc;
+      let alpha = false;
+      for (let i = 3; i < rgba.length; i += 4) if (rgba[i] < 128) { alpha = true; break; }
+      const palette = alpha ? quantize(rgba, 256, { format: 'rgba4444', oneBitAlpha: true })
+                            : quantize(rgba, 256, { format: 'rgb565' });
+      const ti = alpha ? palette.findIndex(c => c[3] === 0) : -1;   // индекс прозрачного цвета
+      const index = dither ? gifDither(rgba, w, h, palette, ti)
+                           : applyPalette(rgba, palette, alpha ? 'rgba4444' : 'rgb565');
+      const gif = GIFEncoder();
+      gif.writeFrame(index, w, h, { palette, transparent: ti >= 0, transparentIndex: ti >= 0 ? ti : 0, repeat: -1 });
+      gif.finish();
+      return gif.bytes();
+    }
+
+    // ── конвертация изображения ──
+    function convertImage(item, fmt, ext, q, dither) {
       return new Promise(resolve => {
-        const span = $('fi' + i);
+        const span = item.toEl;
         span.textContent = 'обработка…'; span.className = 'fi-to';
         const fail = msg => { span.textContent = msg; span.className = 'fi-to error'; resolve(); };
+        const finish = blob => {
+          item.result = { blob, name: baseName(item.file.name) + '.' + ext };
+          const pct = Math.round((1 - blob.size / item.file.size) * 100);
+          span.textContent = formatBytes(blob.size) + ' (' + (pct > 0 ? '−' + pct : '+' + Math.abs(pct)) + '%)';
+          span.className = 'fi-to done';
+          resolve();
+        };
         const img = new Image();
-        const url = URL.createObjectURL(file);
+        const url = URL.createObjectURL(item.file);
         img.onerror = () => { URL.revokeObjectURL(url); fail('не удалось прочитать'); };
-        img.onload = () => {
+        img.onload = async () => {
           const canvas = document.createElement('canvas');
           canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
           const ctx = canvas.getContext('2d');
           if (fmt === 'image/jpeg' || fmt === 'image/bmp') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
           ctx.drawImage(img, 0, 0);
           URL.revokeObjectURL(url);
+          if (fmt === 'image/gif') {
+            await new Promise(r => setTimeout(r, 20));          // дать интерфейсу перерисоваться перед тяжёлой работой
+            try {
+              const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+              finish(new Blob([encodeGif(data, canvas.width, canvas.height, dither)], { type: 'image/gif' }));
+            } catch (err) { console.error(err); fail('ошибка кодирования GIF'); }
+            return;
+          }
           canvas.toBlob(blob => {
             if (!blob || blob.type !== fmt) return fail('формат не поддерживается');
-            results[i] = { blob, name: file.name.replace(/\.[^.]+$/, '') + '.' + ext };
-            const pct = Math.round((1 - blob.size / file.size) * 100);
-            span.textContent = formatBytes(blob.size) + ' (' + (pct > 0 ? '−' + pct : '+' + Math.abs(pct)) + '%)';
-            span.className = 'fi-to done';
-            resolve();
+            finish(blob);
           }, fmt, q);
         };
         img.src = url;
       });
     }
 
-    convertBtn.onclick = async () => {
-      convertBtn.disabled = true; downloadAllBtn.disabled = true;
-      results = [];
-      const fmt = currentFmt, ext = currentExt, q = qualityInput.value / 100;
+    // ── конвертация документа ──
+    function htmlForExport(html) {
+      return '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+        '<style>' +
+        'body{font-family:Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 24px;' +
+        'color:#111;line-height:1.6;font-size:15px;}' +
+        'img{max-width:100%;}pre,code{background:#f3f4f6;border-radius:4px;}' +
+        'pre{padding:12px;overflow:auto;}code{padding:2px 5px;font-size:.9em;}' +
+        'table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:6px 10px;}' +
+        'blockquote{border-left:3px solid #888;margin-left:0;padding-left:14px;color:#555;}' +
+        '</style></head><body>' + html + '</body></html>';
+    }
+
+    // для PDF: убираем картинки без data-URL (внешние ссылки в PDF не встроить)
+    function stripImgs(html) {
+      const d = new DOMParser().parseFromString(html, 'text/html');
+      d.querySelectorAll('img').forEach(img => { if (img.src.indexOf('data:') !== 0) img.remove(); });
+      return d.body.innerHTML;
+    }
+
+    async function convertDoc(item, target) {
+      const html = item.html;
+      const name = baseName(item.file.name) + '.' + target;
+      if (target === 'html') return { blob: new Blob([htmlForExport(html)], { type: 'text/html;charset=utf-8' }), name };
+      if (target === 'txt') {
+        let text = item.text;
+        if (!text && html) text = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+        return { blob: new Blob([text], { type: 'text/plain;charset=utf-8' }), name };
+      }
+      if (target === 'md') {
+        await need('turndown');
+        const md = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' }).turndown(html);
+        return { blob: new Blob([md], { type: 'text/markdown;charset=utf-8' }), name };
+      }
+      if (target === 'docx') {
+        await need('htmldocx');
+        return { blob: htmlDocx.asBlob(htmlForExport(html), { margins: { top: 720, bottom: 720, left: 720, right: 720 } }), name };
+      }
+      // pdf — через pdfmake: надёжно, без снимков экрана, кириллица ок
+      await Promise.all([need('pdfmake'), need('h2p')]);
+      const content = htmlToPdfmake(stripImgs(html), {
+        defaultStyles: {
+          p:     { fontSize: 11, lineHeight: 1.4, margin: [0, 4, 0, 4] },
+          h1:    { fontSize: 20, bold: true, margin: [0, 12, 0, 6] },
+          h2:    { fontSize: 16, bold: true, margin: [0, 10, 0, 5] },
+          h3:    { fontSize: 13, bold: true, margin: [0, 8, 0, 4] },
+          pre:   { background: '#f3f4f6', margin: [0, 6, 0, 6] },
+          code:  { background: '#f3f4f6', fontSize: 10 },
+          blockquote: { italics: true, margin: [8, 4, 8, 4] },
+          table: { margin: [0, 6, 0, 6] },
+          th:    { bold: true, fillColor: '#eeeeee' }
+        }
+      });
+      const docDef = { pageSize: 'A4', pageMargins: [48, 56, 48, 56], content, defaultStyle: { fontSize: 11, lineHeight: 1.4 } };
+      return new Promise((resolve, reject) => {
+        try { pdfMake.createPdf(docDef).getBlob(blob => resolve({ blob, name })); }
+        catch (err) { reject(err); }
+      });
+    }
+
+    async function convertDocItem(item, target, stats) {
+      item.toEl.textContent = 'обработка…'; item.toEl.className = 'fi-to';
+      try {
+        item.result = await convertDoc(item, target);
+        item.toEl.textContent = formatBytes(item.result.blob.size);
+        item.toEl.className = 'fi-to done';
+      } catch (err) {
+        console.error(err);
+        item.toEl.textContent = 'ошибка'; item.toEl.className = 'fi-to error'; item.toEl.title = err.message;
+        stats.lastError = err.message;
+      }
+    }
+
+    // ── запуск ──
+    async function runPool(list, n, fn) {
       let next = 0;
-      const worker = async () => { while (next < files.length) { const i = next++; await convertOne(files[i], i, fmt, ext, q); } };
-      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
-      const ok = results.filter(Boolean).length;
-      say(ok ? 'Готово: ' + ok + ' из ' + files.length : 'Ничего не удалось конвертировать', !ok);
-      downloadAllBtn.disabled = !ok;
-      toCompBtn.disabled = !ok;
-      toExifBtn.disabled = !results.some(r => r && r.blob.type === 'image/jpeg');
+      await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => {
+        while (next < list.length) await fn(list[next++]);
+      }));
+    }
+
+    convertBtn.onclick = async () => {
+      convertBtn.disabled = true; downloadBtn.disabled = true; toCompBtn.disabled = true; toExifBtn.disabled = true;
+      items.forEach(i => { i.result = null; });
+      const fmt = imgTarget.fmt, ext = imgTarget.ext, q = qualityInput.value / 100, dither = ditherChk.checked, target = docTarget;
+      const imgs = items.filter(i => i.kind === 'image');
+      const docs = items.filter(i => i.kind === 'doc' && DOC_MAP[i.ext].includes(target));
+      const skippedDocs = items.filter(i => i.kind === 'doc' && !DOC_MAP[i.ext].includes(target));
+      skippedDocs.forEach(i => { i.toEl.textContent = 'пропуск'; i.toEl.className = 'fi-to wait'; });
+      say('Конвертирую…');
+      const stats = { lastError: '' };
+      await Promise.all([
+        runPool(imgs, CONCURRENCY, it => convertImage(it, fmt, ext, q, dither)),
+        runPool(docs, 1, it => convertDocItem(it, target, stats))        // документы по одному: PDF тяжёлый
+      ]);
+      const attempted = imgs.length + docs.length, ok = items.filter(i => i.result).length;
+      let msg = ok ? 'Готово: ' + ok + ' из ' + attempted : 'Ничего не удалось конвертировать';
+      if (skippedDocs.length) msg += '. Пропущено ' + skippedDocs.length + ': ' + target.toUpperCase() + ' недоступен для их формата';
+      if (stats.lastError) msg += '. ' + stats.lastError;
+      say(msg, !ok || !!stats.lastError);
       convertBtn.disabled = false;
+      updateButtons();
     };
 
+    // ── скачивание и передача в другие инструменты ──
     function save(blob, name) {
       const a = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -243,15 +631,15 @@
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
 
-    downloadAllBtn.onclick = async () => {
-      const done = results.filter(Boolean);
+    downloadBtn.onclick = async () => {
+      const done = items.filter(i => i.result).map(i => i.result);
       if (done.length === 1) return save(done[0].blob, done[0].name);
       if (typeof JSZip === 'undefined') { say('Библиотека ZIP не загружена. Подключись к интернету и обнови страницу.', true); return; }
       const zip = new JSZip(), used = new Set();
       done.forEach(r => {
         let n = r.name, k = 2;
-        const dot = n.lastIndexOf('.'), base = n.slice(0, dot), ext = n.slice(dot);
-        while (used.has(n.toLowerCase())) n = base + ' (' + k++ + ')' + ext;
+        const dot = n.lastIndexOf('.'), base = n.slice(0, dot), ex = n.slice(dot);
+        while (used.has(n.toLowerCase())) n = base + ' (' + k++ + ')' + ex;
         used.add(n.toLowerCase());
         zip.file(n, r.blob);
       });
@@ -259,21 +647,47 @@
     };
 
     toCompBtn.onclick = () => {
-      const items = results.filter(Boolean).map(r => ({ blob: r.blob, name: r.name }));
-      if (items.length) sendTo('batchcomp.html', items);
+      const out = items.filter(i => i.kind === 'image' && i.result).map(i => ({ blob: i.result.blob, name: i.result.name }));
+      if (out.length) sendTo('batchcomp.html', out);
     };
     toExifBtn.onclick = () => {
-      const items = results.filter(r => r && r.blob.type === 'image/jpeg').map(r => ({ blob: r.blob, name: r.name }));
-      if (items.length) sendTo('exif.html', items);
+      const out = items.filter(i => i.kind === 'image' && i.result && i.result.blob.type === 'image/jpeg')
+                       .map(i => ({ blob: i.result.blob, name: i.result.name }));
+      if (out.length) sendTo('exif.html', out);
     };
 
-    resetBtn.onclick = () => location.reload();
+    resetBtn.onclick = () => {
+      items = []; selectedId = null;
+      fileList.textContent = ''; fileInput.value = '';
+      docPreview.classList.remove('visible');
+      say('');
+      refreshUI();
+    };
+
+    // ── предпросмотр документа ──
+    async function renderPreview(item) {
+      const html = item.html;
+      const showHtml = () => { previewCol.innerHTML = html; };
+      const showPre = text => { previewCol.textContent = ''; const pre = document.createElement('pre'); pre.textContent = text.slice(0, 200000); previewCol.appendChild(pre); };
+      if (docTarget === 'md') {
+        try { await need('turndown'); showPre(new TurndownService({ headingStyle: 'atx' }).turndown(html)); }
+        catch (e) { showHtml(); }
+      } else if (docTarget === 'txt') {
+        showPre(new DOMParser().parseFromString(html, 'text/html').body.textContent || item.text || '');
+      } else {
+        showHtml();
+      }
+      docPreview.classList.add('visible');
+      previewCol.scrollTop = 0;
+    }
 
     function formatBytes(b) {
       if (b < 1024) return b + ' B';
       if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
       return (b / 1048576).toFixed(2) + ' MB';
     }
+
+    refreshUI();
 
     // ── приём файлов из другого инструмента ──
     takeHandoff().then(files => { if (files && files.length) loadFiles(files); }).catch(() => {});

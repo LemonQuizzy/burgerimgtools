@@ -1,5 +1,5 @@
-const CACHE = 'imgtools-v9';
-const ASSETS = ['./','./index.html','./batchcomp.html','./exif.html','./imgconv.html','./docconv.html','./common.css','./settings.js','./theme-init.js','./handoff.js','./manifest.json','./icon-192.png','./icon-512.png'];
+const CACHE = 'imgtools-v10';
+const ASSETS = ['./','./index.html','./batchcomp.html','./exif.html','./imgconv.html','./common.css','./settings.js','./theme-init.js','./handoff.js','./raw.js','./gifenc.js','./manifest.json','./icon-192.png','./icon-512.png'];
 const CROSS = ['cdn.jsdelivr.net','fonts.googleapis.com','fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
