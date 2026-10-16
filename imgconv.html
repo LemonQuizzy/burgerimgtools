@@ -57,8 +57,9 @@
     .img-options { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
 
     .vid-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .vid-opts > div { display: flex; flex-direction: column; justify-content: flex-end; }
     .vid-opts label { display: block; margin-bottom: 4px; }
-    .vid-opts input[type="number"] { width: 100%; box-sizing: border-box; }
+    .vid-opts input[type="number"], .vid-opts select { width: 100%; box-sizing: border-box; }
     .checkbox-row { display: flex; align-items: center; gap: 8px; }
     .checkbox-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); margin: 0; cursor: pointer; }
     .checkbox-row label { font-size: 12px; color: var(--text-muted); margin: 0; text-transform: none; letter-spacing: 0; cursor: pointer; }
@@ -132,7 +133,7 @@
       <input type="file" id="fileInput" accept="image/*,video/*,.avif,.heic,.bmp,.mp4,.m4v,.mov,.webm,.mkv,.ogv,.avi,.3gp,.md,.markdown,.txt,.html,.htm,.docx" multiple>
       <div class="drop-zone-text">
         Перетащи сюда или <strong>нажми для выбора</strong><br>
-        <span class="sub">Изображения: JPG, PNG, WebP, GIF, BMP, AVIF · Видео: MP4, WebM, MOV → GIF · Документы: MD, TXT, HTML, DOCX<br>Анимированный GIF → MP4 / WebM. Можно выбрать сразу несколько файлов разных типов</span>
+        <span class="sub">Изображения: JPG, PNG, WebP, GIF, BMP, AVIF · Видео: MP4, WebM, MKV, MOV · Документы: MD, TXT, HTML, DOCX<br>Видео ↔ видео, видео → GIF, GIF → MP4 / WebM. Можно выбрать сразу несколько файлов разных типов</span>
       </div>
     </div>
 
@@ -181,8 +182,12 @@
       </div>
       <div class="format-row" id="vidFormats">
         <button type="button" class="fmt-btn active" data-fmt="gif" aria-pressed="true">GIF</button>
+        <button type="button" class="fmt-btn" data-fmt="mp4" aria-pressed="false">MP4</button>
+        <button type="button" class="fmt-btn" data-fmt="webm" aria-pressed="false">WebM</button>
+        <button type="button" class="fmt-btn" data-fmt="mkv" aria-pressed="false">MKV</button>
+        <button type="button" class="fmt-btn" data-fmt="mov" aria-pressed="false">MOV</button>
       </div>
-      <div class="img-options">
+      <div class="img-options" id="gifOpts">
         <div class="vid-opts">
           <div><label for="vidWidth">Ширина, px (0 — как в видео)</label><input type="number" id="vidWidth" value="480" min="0" max="4096" step="10"></div>
           <div><label for="vidFps">Кадров в секунду</label><input type="number" id="vidFps" value="12" min="1" max="30"></div>
@@ -193,6 +198,28 @@
           <label for="vidDither">Дизеринг — плавнее градиенты (файл больше, возможно мерцание)</label>
         </div>
         <div class="fmt-note visible">GIF ограничен 256 цветами и без звука; размер быстро растёт с шириной, FPS и длительностью. Палитра общая на все кадры. Если видео длиннее лимита, берётся его начало.</div>
+      </div>
+      <div class="img-options" id="vvOpts" hidden>
+        <div class="vid-opts">
+          <div><label for="vvQuality">Качество</label>
+            <select id="vvQuality">
+              <option value="copy" selected>Как в исходнике (быстро)</option>
+              <option value="QUALITY_VERY_LOW">Очень низкое</option>
+              <option value="QUALITY_LOW">Низкое</option>
+              <option value="QUALITY_MEDIUM">Среднее</option>
+              <option value="QUALITY_HIGH">Высокое</option>
+              <option value="QUALITY_VERY_HIGH">Очень высокое</option>
+            </select></div>
+          <div><label for="vvWidth">Ширина, px (0 — как есть)</label><input type="number" id="vvWidth" value="0" min="0" max="8192" step="10"></div>
+          <div><label for="vvFps">Кадров/с (0 — как есть)</label><input type="number" id="vvFps" value="0" min="0" max="120"></div>
+          <div><label for="vvStart">Обрезка: с секунды</label><input type="number" id="vvStart" placeholder="начало" min="0" step="0.1"></div>
+          <div><label for="vvEnd">Обрезка: до секунды</label><input type="number" id="vvEnd" placeholder="конец" min="0" step="0.1"></div>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="vvMute">
+          <label for="vvMute">Убрать звук</label>
+        </div>
+        <div class="fmt-note visible">«Как в исходнике» — если кодеки подходят новому контейнеру, видео и звук копируются без перекодирования (мгновенно и без потери качества). Смена размера, FPS или качества включает перекодирование силами браузера (WebCodecs). Файл целиком обрабатывается в памяти — для очень больших видео (несколько ГБ) это может не сработать.</div>
       </div>
     </div>
 
@@ -239,6 +266,8 @@
           ditherRow = $('ditherRow'), ditherChk = $('ditherChk'),
           vidGroup = $('vidGroup'), vidCount = $('vidCount'), vidWidth = $('vidWidth'), vidFps = $('vidFps'),
           vidDur = $('vidDur'), vidDither = $('vidDither'),
+          gifOpts = $('gifOpts'), vvOpts = $('vvOpts'), vvQuality = $('vvQuality'), vvWidth = $('vvWidth'),
+          vvFps = $('vvFps'), vvStart = $('vvStart'), vvEnd = $('vvEnd'), vvMute = $('vvMute'),
           statusEl = $('status'), docPreview = $('docPreview'), previewCol = $('previewCol'),
           convertBtn = $('convertBtn'), downloadBtn = $('downloadBtn'),
           toCompBtn = $('toCompBtn'), toExifBtn = $('toExifBtn'), resetBtn = $('resetBtn');
@@ -263,10 +292,12 @@
       'video/webm': [['vp09.00.10.08', 'V_VP9'], ['vp8', 'V_VP8']]
     };
     const LOSSLESS = ['image/png', 'image/bmp', 'image/gif'];
+    const VID_TARGETS = { mp4: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska', mov: 'video/quicktime' };   // видео → видео
 
     let items = [];                 // { id, file, kind: 'image'|'doc'|'video', isGif, ext, el, toEl, result: {blob,name}|null, text, html }
     let imgTarget = { fmt: 'image/jpeg', ext: 'jpg' };
     let docTarget = 'pdf';
+    let vidTarget = 'gif';           // 'gif' | ключ из VID_TARGETS
     let selectedId = null, uid = 0;
     const imgSupported = {};        // mime → умеет ли браузер кодировать
 
@@ -335,6 +366,12 @@
       refreshUI();
       const sel = items.find(i => i.id === selectedId);
       if (sel) renderPreview(sel);
+    });
+    const vidButtons = Array.from($('vidFormats').querySelectorAll('.fmt-btn'));
+    vidButtons.forEach(b => b.onclick = () => {
+      vidTarget = b.dataset.fmt;
+      items.forEach(i => { if (i.kind === 'video') i.result = null; });
+      refreshUI();
     });
     qualityInput.oninput = () => { qualityValue.textContent = qualityInput.value + '%'; };
 
@@ -459,6 +496,11 @@
           : 'PNG и BMP — без потерь, ползунок качества не влияет';
       fmtNote.classList.toggle('visible', lossless || toVideo);
 
+      // видео: активный формат и нужный блок настроек
+      setActive(vidButtons, vidButtons.find(b => b.dataset.fmt === vidTarget));
+      gifOpts.hidden = vidTarget !== 'gif';
+      vvOpts.hidden = vidTarget === 'gif';
+
       // документы: кнопка доступна, если хотя бы один загруженный документ умеет конвертироваться в этот формат
       docButtons.forEach(b => { b.disabled = !docs.some(d => DOC_MAP[d.ext].includes(b.dataset.fmt)); });
       const dcur = docButtons.find(b => b.dataset.fmt === docTarget && !b.disabled) || docButtons.find(b => !b.disabled);
@@ -469,7 +511,7 @@
         if (i.result) return;
         let label;
         if (i.kind === 'image') label = toVideo && !i.isGif ? '—' : imgTarget.ext.toUpperCase();
-        else if (i.kind === 'video') label = 'GIF';
+        else if (i.kind === 'video') label = vidTarget.toUpperCase();
         else label = DOC_MAP[i.ext].includes(docTarget) ? docTarget.toUpperCase() : '—';
         i.toEl.textContent = label;
         i.toEl.className = 'fi-to wait';
@@ -668,16 +710,25 @@
         el.addEventListener(ok, onOk); el.addEventListener('error', onErr);
       });
     }
-    async function openVideo(file) {
+    async function openVideo(file, attach) {
       const url = URL.createObjectURL(file);
       const v = document.createElement('video');
-      v.muted = true; v.playsInline = true; v.preload = 'auto';
+      v.muted = true; v.defaultMuted = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+      v.playsInline = true; v.preload = 'auto';
+      if (attach) {      // часть мобильных браузеров не обновляет кадр у «висящего в воздухе» видео — кладём его в DOM, но не видно
+        v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
+        document.body.appendChild(v);
+      }
       const ready = waitEvent(v, 'loadeddata');          // первый кадр доступен
       v.src = url; v._url = url;
-      try { await ready; } catch (e) { URL.revokeObjectURL(url); throw e; }
+      try { await ready; } catch (e) { closeVideo(v); throw e; }
       return v;
     }
-    function closeVideo(v) { v.removeAttribute('src'); v.load(); URL.revokeObjectURL(v._url); }
+    function closeVideo(v) {
+      v.removeAttribute('src'); v.load();
+      if (v.parentNode) v.parentNode.removeChild(v);
+      URL.revokeObjectURL(v._url);
+    }
     async function probeVideo(file) {
       const v = await openVideo(file);
       try {
@@ -695,6 +746,16 @@
         v.currentTime = t;
       });
     }
+    // «seeked» ≠ «кадр уже показан»: ждём, пока браузер реально отрисует кадр (или не дольше ms)
+    function frameReady(v, ms) {
+      return new Promise(res => {
+        let done = false;
+        const fin = () => { if (!done) { done = true; clearTimeout(to); res(); } };
+        const to = setTimeout(fin, ms);
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => fin());
+        else requestAnimationFrame(() => requestAnimationFrame(fin));
+      });
+    }
 
     function readVideoOpts() {
       const num = (el, lo, hi, d) => { const n = parseInt(el.value, 10); const r = isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; el.value = r; return r; };
@@ -704,50 +765,206 @@
       return { width, fps: num(vidFps, 1, 30, 12), maxDur: num(vidDur, 1, 60, 15), dither: vidDither.checked };
     }
 
-    async function videoToGif(file, o, progress) {
-      const { GIFEncoder, quantize, applyPalette } = gifenc;
-      const v = await openVideo(file);
+    // ── источники кадров для видео → GIF ──
+    // Разные браузеры по-разному отдают кадры, поэтому пробуем по очереди и каждый проверяем:
+    //  1) WebCodecs (через Mediabunny) — декодирует сам, не зависит от <video> и перемотки;
+    //  2) перемотка скрытого <video>, лежащего в DOM, с ожиданием реальной отрисовки кадра;
+    //  3) то же, но кадр «прокачивается» коротким воспроизведением (нужно части мобильных браузеров).
+    // Источник: { method, w, h, dur, close(), frames(times[]) → async-итератор RGBA-кадров }; times по возрастанию.
+    const fitSize = (o, vw, vh) => { const w = Math.max(2, Math.min(o.width || vw, vw)); return { w, h: Math.max(2, Math.round(w * vh / vw)) }; };
+
+    async function openWebCodecsSource(file, o) {
+      if (typeof VideoDecoder === 'undefined' || typeof VideoFrame === 'undefined') throw new Error('WebCodecs недоступен в этом браузере');
+      const MB = await getMB();
+      const input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
+      try {
+        const track = await input.getPrimaryVideoTrack();
+        if (!track) throw new Error('нет видеодорожки');
+        if (!(await track.canDecode())) throw new Error('кодек не поддерживается декодером браузера');
+        const { w, h } = fitSize(o, track.displayWidth, track.displayHeight);
+        const [t0, end] = await Promise.all([track.getFirstTimestamp(), track.computeDuration()]);
+        const sink = new MB.CanvasSink(track, { width: w, height: h, fit: 'fill' });
+        return {
+          method: 'WebCodecs', w, h, dur: end - t0,
+          close: () => { try { input.dispose(); } catch (e) { /* не критично */ } },
+          async *frames(times) {
+            let last = null;
+            for await (const wc of sink.canvasesAtTimestamps(times.map(t => t0 + t))) {
+              if (wc) last = wc.canvas.getContext('2d').getImageData(0, 0, w, h).data;
+              if (last) yield last;
+            }
+          }
+        };
+      } catch (e) { try { input.dispose(); } catch (x) { /* не критично */ } throw e; }
+    }
+
+    async function openSeekSource(file, o, pump) {
+      const v = await openVideo(file, true);
       try {
         const vw = v.videoWidth, vh = v.videoHeight;
         if (!vw || !vh) throw new Error('нет видеодорожки');
         if (!isFinite(v.duration) || v.duration <= 0) throw new Error('не удалось определить длительность');
-        const w = Math.max(2, Math.min(o.width || vw, vw)), h = Math.max(2, Math.round(w * vh / vw));
-        const fps = o.fps, dur = Math.min(v.duration, o.maxDur), n = Math.max(1, Math.floor(dur * fps));
+        const { w, h } = fitSize(o, vw, vh);
         const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const grab = async i => {
-          await seekTo(v, Math.min(i / fps, Math.max(0, v.duration - 0.01)));
-          ctx.drawImage(v, 0, 0, w, h);
-          return ctx.getImageData(0, 0, w, h).data;
+        if (pump) v.playbackRate = 0.25;                 // чтобы за время «прокачки» кадр почти не уехал
+        return {
+          method: pump ? 'перемотка + play/pause' : 'перемотка', w, h, dur: v.duration,
+          close: () => closeVideo(v),
+          async *frames(times) {
+            for (const t of times) {
+              await seekTo(v, t);
+              if (pump) {
+                await v.play();
+                await frameReady(v, 400);
+                ctx.drawImage(v, 0, 0, w, h);            // рисуем, пока видео «идёт»
+                v.pause();
+              } else {
+                await frameReady(v, 150);
+                ctx.drawImage(v, 0, 0, w, h);
+              }
+              yield ctx.getImageData(0, 0, w, h).data;
+            }
+          }
         };
+      } catch (e) { closeVideo(v); throw e; }
+    }
+
+    // Меняются ли кадры на 5 %, 50 % и 95 % длительности? (замороженный кадр даёт нулевую разницу)
+    async function framesVary(src) {
+      const d = src.dur;
+      const ts = [0.05, 0.5, 0.95].map(f => Math.min(f * d, Math.max(0, d - 0.05)));
+      const fr = [];
+      for await (const f of src.frames(ts)) fr.push(f);
+      if (fr.length < 2) return false;
+      let max = 0;
+      for (let a = 0; a < fr.length; a++) for (let b = a + 1; b < fr.length; b++) {
+        const A = fr[a], B = fr[b]; let sum = 0, cnt = 0;
+        for (let p = 0; p < A.length; p += 148) { sum += Math.abs(A[p] - B[p]) + Math.abs(A[p + 1] - B[p + 1]) + Math.abs(A[p + 2] - B[p + 2]); cnt += 3; }
+        max = Math.max(max, sum / cnt);
+      }
+      return max > 0.5;
+    }
+
+    async function openFrameSource(file, o, progress) {
+      const methods = [
+        ['WebCodecs', () => openWebCodecsSource(file, o)],
+        ['перемотка', () => openSeekSource(file, o, false)],
+        ['перемотка + play/pause', () => openSeekSource(file, o, true)]
+      ];
+      const log = [];
+      let fallback = null;
+      for (const [name, open] of methods) {
+        progress('проверяю: ' + name + '…');
+        let src;
+        try { src = await open(); } catch (e) { log.push(name + ': ' + e.message); continue; }
+        let ok = true;
+        if (Math.floor(Math.min(src.dur, o.maxDur) * o.fps) >= 2) {
+          try { ok = await framesVary(src); } catch (e) { log.push(name + ': ' + e.message); src.close(); continue; }
+        }
+        if (ok) { if (fallback) fallback.close(); return src; }
+        log.push(name + ': кадры не меняются');
+        if (!fallback) fallback = src; else src.close();
+      }
+      if (fallback) { fallback.suspectStatic = true; fallback.log = log; return fallback; }
+      throw new Error('не удалось получить кадры видео (' + log.join('; ') + ')');
+    }
+
+    async function videoToGif(file, o, progress, warn, note) {
+      const { GIFEncoder, quantize, applyPalette } = gifenc;
+      const src = await openFrameSource(file, o, progress);
+      try {
+        note('метод: ' + src.method);
+        if (src.suspectStatic) {
+          warn('кадры не меняются (проверено: ' + src.log.map(x => x.split(':')[0]).join(', ') + '). Если в видео есть движение — браузер не отдаёт кадры; попробуйте другой браузер (например Chrome) или видео H.264 MP4');
+        }
+        const { w, h } = src, vdur = src.dur;
+        const fps = o.fps, dur = Math.min(vdur, o.maxDur), n = Math.max(1, Math.floor(dur * fps));
+        const timeOf = i => Math.min(i / fps, Math.max(0, vdur - 0.01));
 
         // Проход 1: одна общая палитра по выборке кадров — цвета не «прыгают» между кадрами
         const nS = Math.min(n, Math.max(3, Math.min(20, Math.floor(4e6 / (w * h)))));
         const idx = [];
         for (let k = 0; k < nS; k++) idx.push(nS === 1 ? 0 : Math.round(k * (n - 1) / (nS - 1)));
         const sampleIdx = Array.from(new Set(idx));
-        const cache = new Map(), combined = new Uint8ClampedArray(sampleIdx.length * w * h * 4);
-        for (let k = 0; k < sampleIdx.length; k++) {
+        const combined = new Uint8ClampedArray(sampleIdx.length * w * h * 4);
+        let k = 0;
+        for await (const d of src.frames(sampleIdx.map(timeOf))) {
           progress('палитра ' + (k + 1) + '/' + sampleIdx.length);
-          const d = await grab(sampleIdx[k]);
-          cache.set(sampleIdx[k], d); combined.set(d, k * w * h * 4);
+          combined.set(d, k * w * h * 4); k++;
         }
-        const palette = quantize(combined, 256, { format: 'rgb565' });
+        if (!k) throw new Error('не удалось получить ни одного кадра');
+        const palette = quantize(combined.subarray(0, k * w * h * 4), 256, { format: 'rgb565' });
 
         // Проход 2: кодируем кадры потоком
         const cs = Math.max(2, Math.round(100 / fps));      // задержка в сотых секунды (меньше 2 браузеры «растягивают»)
         const gif = GIFEncoder();
-        for (let i = 0; i < n; i++) {
-          progress('кадр ' + (i + 1) + '/' + n);
-          const d = cache.get(i) || await grab(i);
-          cache.delete(i);
+        let i = 0;
+        for await (const d of src.frames(Array.from({ length: n }, (_, j) => timeOf(j)))) {
+          progress('кадр ' + (i + 1) + '/' + n + ' · ' + src.method);
           const index = o.dither ? gifDither(d, w, h, palette, -1) : applyPalette(d, palette, 'rgb565');
           gif.writeFrame(index, w, h, { palette: i === 0 ? palette : undefined, delay: cs * 10, repeat: 0 });
+          i++;
           if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
         }
+        if (!i) throw new Error('не удалось получить ни одного кадра');
         gif.finish();
         return new Blob([gif.bytes()], { type: 'image/gif' });
-      } finally { closeVideo(v); }
+      } finally { src.close(); }
+    }
+
+    // ── видео → видео (Mediabunny: демукс + декод/энкод WebCodecs + муксер, со звуком) ──
+    let mbPromise = null;
+    const getMB = () => mbPromise || (mbPromise = import('./mediabunny.min.mjs').catch(() => {
+      mbPromise = null; throw new Error('не удалось загрузить модуль видео (mediabunny.min.mjs) — проверь соединение и файлы сайта');
+    }));
+    const DISCARD_TEXT = {
+      unknown_source_codec: 'неизвестный кодек исходника',
+      undecodable_source_codec: 'браузер не умеет декодировать этот кодек',
+      no_encodable_target_codec: 'браузер не умеет кодировать подходящий для этого контейнера кодек',
+      max_track_count_of_type_reached: 'контейнер не поддерживает такую дорожку',
+      cannot_copy: 'невозможно скопировать без перекодирования'
+    };
+
+    function readVVOpts() {
+      const int = (el, lo, hi) => { const n = parseInt(el.value, 10); const r = isFinite(n) ? Math.min(hi, Math.max(lo, n)) : 0; el.value = r; return r; };
+      const flt = el => { const n = parseFloat(el.value); return isFinite(n) && n >= 0 ? n : undefined; };
+      let width = int(vvWidth, 0, 8192); if (width && width < 16) width = 16; width -= width % 2;     // чётная ширина
+      vvWidth.value = width;
+      const start = flt(vvStart), end = flt(vvEnd);
+      if (start !== undefined && end !== undefined && end <= start) throw new Error('в обрезке «до» должно быть больше «с»');
+      return { quality: vvQuality.value, width, fps: int(vvFps, 0, 120), start, end, mute: vvMute.checked };
+    }
+
+    async function videoToVideo(file, target, o, progress, warn) {
+      const MB = await getMB();
+      const input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
+      try {
+        const format = {
+          mp4: () => new MB.Mp4OutputFormat({ fastStart: 'in-memory' }),
+          mov: () => new MB.MovOutputFormat({ fastStart: 'in-memory' }),
+          webm: () => new MB.WebMOutputFormat(),
+          mkv: () => new MB.MkvOutputFormat()
+        }[target]();
+        const bufferTarget = new MB.BufferTarget();
+        const output = new MB.Output({ format, target: bufferTarget });
+        const video = {};
+        if (o.width) video.width = o.width;
+        if (o.fps) video.frameRate = o.fps;
+        if (o.quality !== 'copy') { video.quality = MB[o.quality]; video.forceTranscode = true; }
+        const opts = { input, output, video, audio: o.mute ? { discard: true } : {}, showWarnings: false };
+        if (o.start !== undefined || o.end !== undefined) opts.trim = { start: o.start, end: o.end };
+        const conv = await MB.Conversion.init(opts);
+        const lost = conv.discardedTracks.filter(d => d.reason !== 'discarded_by_user');
+        if (!conv.isValid) {
+          throw new Error('конвертация невозможна: ' + (lost.map(d => DISCARD_TEXT[d.reason] || d.reason).join('; ') || 'нет подходящих дорожек'));
+        }
+        lost.forEach(d => warn((d.track.type === 'audio' ? 'звук' : d.track.type === 'video' ? 'видео' : 'дорожка') + ' не перенесён(а): ' + (DISCARD_TEXT[d.reason] || d.reason)));
+        conv.onProgress = pr => progress(Math.round(pr * 100) + '%');
+        await conv.execute();
+        if (!bufferTarget.buffer) throw new Error('пустой результат');
+        return new Blob([bufferTarget.buffer], { type: VID_TARGETS[target] });
+      } finally { try { input.dispose(); } catch (e) { /* не критично */ } }
     }
 
     // ── GIF → видео (WebCodecs + муксер) ──
@@ -898,9 +1115,10 @@
     }
 
     async function convertMediaItem(item, work, stats) {
-      item.toEl.className = 'fi-to'; item.toEl.textContent = 'обработка…';
+      item.toEl.className = 'fi-to'; item.toEl.textContent = 'обработка…'; item.toEl.title = '';
+      const note = msg => { item.toEl.title = msg; if (!/WebCodecs/.test(msg)) stats.notes.push(item.file.name + ': ' + msg); };
       try {
-        const res = await work(msg => { item.toEl.textContent = msg; });
+        const res = await work(msg => { item.toEl.textContent = msg; }, note);
         item.result = res;
         item.toEl.textContent = formatBytes(res.blob.size);
         item.toEl.className = 'fi-to done';
@@ -915,30 +1133,36 @@
       convertBtn.disabled = true; downloadBtn.disabled = true; toCompBtn.disabled = true; toExifBtn.disabled = true;
       items.forEach(i => { i.result = null; });
       const fmt = imgTarget.fmt, ext = imgTarget.ext, q = qualityInput.value / 100, dither = ditherChk.checked, target = docTarget;
-      const toVideo = VIDEO_OUT.includes(fmt), vo = readVideoOpts();
+      const toVideo = VIDEO_OUT.includes(fmt);
+      const vids = items.filter(i => i.kind === 'video');
+      let vo = null, vv = null;
+      try { if (vids.length) { if (vidTarget === 'gif') vo = readVideoOpts(); else vv = readVVOpts(); } }
+      catch (err) { say(err.message, true); convertBtn.disabled = false; updateButtons(); return; }
       const allImgs = items.filter(i => i.kind === 'image');
       const imgs = toVideo ? [] : allImgs;
       const gifJobs = toVideo ? allImgs.filter(i => i.isGif) : [];
       const docs = items.filter(i => i.kind === 'doc' && DOC_MAP[i.ext].includes(target));
-      const vids = items.filter(i => i.kind === 'video');
       const skipped = [
         ...items.filter(i => i.kind === 'doc' && !DOC_MAP[i.ext].includes(target)),
         ...(toVideo ? allImgs.filter(i => !i.isGif) : [])
       ];
       skipped.forEach(i => { i.toEl.textContent = 'пропуск'; i.toEl.className = 'fi-to wait'; });
       say('Конвертирую…');
-      const stats = { lastError: '' };
+      const stats = { lastError: '', warnings: [], notes: [] };
       await Promise.all([
         runPool(imgs, CONCURRENCY, it => convertImage(it, fmt, ext, q, dither)),
         runPool(docs, 1, it => convertDocItem(it, target, stats)),        // документы по одному: PDF тяжёлый
         runPool(gifJobs, 1, it => convertMediaItem(it, async progress =>
           ({ blob: await gifToVideo(it.file, fmt, q, progress), name: baseName(it.file.name) + '.' + ext }), stats)),
-        runPool(vids, 1, it => convertMediaItem(it, async progress =>
-          ({ blob: await videoToGif(it.file, vo, progress), name: baseName(it.file.name) + '.gif' }), stats))
+        runPool(vids, 1, it => convertMediaItem(it, async (progress, note) => vidTarget === 'gif'
+          ? { blob: await videoToGif(it.file, vo, progress, w => stats.warnings.push(it.file.name + ': ' + w), note), name: baseName(it.file.name) + '.gif' }
+          : { blob: await videoToVideo(it.file, vidTarget, vv, progress, w => stats.warnings.push(it.file.name + ': ' + w)), name: baseName(it.file.name) + '.' + vidTarget }, stats))
       ]);
       const attempted = imgs.length + docs.length + gifJobs.length + vids.length, ok = items.filter(i => i.result).length;
       let msg = ok ? 'Готово: ' + ok + ' из ' + attempted : 'Ничего не удалось конвертировать';
       if (skipped.length) msg += '. Пропущено ' + skipped.length + ': выбранный формат им не подходит';
+      if (stats.notes.length) msg += '. ' + stats.notes.join('; ');
+      if (stats.warnings.length) msg += '. Внимание — ' + stats.warnings.join('; ');
       if (stats.lastError) msg += '. ' + stats.lastError;
       say(msg, !ok || !!stats.lastError);
       convertBtn.disabled = false;
