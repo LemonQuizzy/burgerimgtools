@@ -130,10 +130,10 @@
 
     <label>Выбери файл(ы)</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*,video/*,.avif,.heic,.bmp,.mp4,.m4v,.mov,.webm,.mkv,.ogv,.avi,.3gp,.md,.markdown,.txt,.html,.htm,.docx" multiple>
+      <input type="file" id="fileInput" accept="image/*,video/*,.avif,.heic,.heif,.hif,.bmp,.mp4,.m4v,.mov,.webm,.mkv,.ogv,.avi,.3gp,.mod,.mpg,.mpeg,.vob,.md,.markdown,.txt,.html,.htm,.docx" multiple>
       <div class="drop-zone-text">
         Перетащи сюда или <strong>нажми для выбора</strong><br>
-        <span class="sub">Изображения: JPG, PNG, WebP, GIF, BMP, AVIF · Видео: MP4, WebM, MKV, MOV · Документы: MD, TXT, HTML, DOCX<br>Видео ↔ видео, видео → GIF, GIF → MP4 / WebM. Можно выбрать сразу несколько файлов разных типов</span>
+        <span class="sub">Изображения: JPG, PNG, WebP, GIF, BMP, AVIF, HEIC · Видео: MP4, WebM, MKV, MOV, MOD (JVC), MPG, VOB · Документы: MD, TXT, HTML, DOCX<br>Видео ↔ видео, видео → GIF, GIF → MP4 / WebM. Можно выбрать сразу несколько файлов разных типов</span>
       </div>
     </div>
 
@@ -221,6 +221,7 @@
         </div>
         <div class="fmt-note visible">«Как в исходнике» — если кодеки подходят новому контейнеру, видео и звук копируются без перекодирования (мгновенно и без потери качества). Смена размера, FPS или качества включает перекодирование силами браузера (WebCodecs). Файл целиком обрабатывается в памяти — для очень больших видео (несколько ГБ) это может не сработать.</div>
       </div>
+      <div class="fmt-note" id="ffNote">MOD / MPG / VOB (MPEG-2, звук AC-3 или MP2) браузер сам не читает, поэтому они обрабатываются встроенным ffmpeg (WebAssembly): при первом запуске загружается ≈31 МБ (потом работает офлайн), кодирование заметно медленнее, чем на компьютере. Чересстрочная развёртка и «широкие» пиксели 16:9 исправляются автоматически; режим «Как в исходнике» для таких файлов — обычное перекодирование. В WebM звук кодируется в Vorbis.</div>
     </div>
 
     <div class="fmt-group" id="docGroup" hidden>
@@ -256,6 +257,7 @@
 
   <script src="handoff.js"></script>
   <script src="gifenc.js"></script>
+  <script src="heic.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -267,7 +269,7 @@
           vidGroup = $('vidGroup'), vidCount = $('vidCount'), vidWidth = $('vidWidth'), vidFps = $('vidFps'),
           vidDur = $('vidDur'), vidDither = $('vidDither'),
           gifOpts = $('gifOpts'), vvOpts = $('vvOpts'), vvQuality = $('vvQuality'), vvWidth = $('vvWidth'),
-          vvFps = $('vvFps'), vvStart = $('vvStart'), vvEnd = $('vvEnd'), vvMute = $('vvMute'),
+          vvFps = $('vvFps'), ffNote = $('ffNote'), vvStart = $('vvStart'), vvEnd = $('vvEnd'), vvMute = $('vvMute'),
           statusEl = $('status'), docPreview = $('docPreview'), previewCol = $('previewCol'),
           convertBtn = $('convertBtn'), downloadBtn = $('downloadBtn'),
           toCompBtn = $('toCompBtn'), toExifBtn = $('toExifBtn'), resetBtn = $('resetBtn');
@@ -283,8 +285,9 @@
       htm:      ['md', 'pdf', 'docx', 'txt'],
       docx:     ['md', 'pdf', 'html', 'txt']
     };
-    const IMG_EXT = /\.(avif|heic|bmp)$/i;
+    const IMG_EXT = /\.(avif|heic|heif|hif|bmp)$/i;
     const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv|ogv|avi|3gp)$/i;
+    const FFMPEG_EXT = /\.(mod|mpg|mpeg|vob)$/i;     // MPEG-PS (JVC MOD, DVD VOB, MPG): браузер не читает → ffmpeg.wasm
     const VIDEO_OUT = ['video/mp4', 'video/webm'];     // форматы, в которые умеем превращать анимированный GIF
     // кодеки по убыванию предпочтения: [строка WebCodecs, кодек для муксера]
     const ENC_CANDIDATES = {
@@ -391,7 +394,7 @@
     // Определяем тип файла: документ (по расширению), видео (по MIME / расширению) или изображение
     function detect(file) {
       if (DOC_MAP[extOf(file.name)]) return 'doc';
-      if (file.type.startsWith('video/') || VIDEO_EXT.test(file.name)) return 'video';
+      if (FFMPEG_EXT.test(file.name) || file.type.startsWith('video/') || VIDEO_EXT.test(file.name)) return 'video';
       if (file.type.startsWith('image/') || IMG_EXT.test(file.name)) return 'image';
       return null;
     }
@@ -418,10 +421,15 @@
         const kind = detect(file);
         if (!kind) { skipped.push(file.name); continue; }
         const item = { id: ++uid, file, kind, ext: extOf(file.name), result: null, text: '', html: '', meta: '',
-                       isGif: kind === 'image' && (extOf(file.name) === 'gif' || file.type === 'image/gif') };
+                       isGif: kind === 'image' && (extOf(file.name) === 'gif' || file.type === 'image/gif'),
+                       viaFfmpeg: kind === 'video' && FFMPEG_EXT.test(file.name) };
+        if (kind === 'image' && HeicDecode.hinted(file)) item.heic = await HeicDecode.sniff(file);   // настоящий HEIC-контейнер?
         if (kind === 'doc') {
           try { await readDoc(item); }
           catch (err) { skipped.push(file.name + ' (' + err.message + ')'); continue; }
+        } else if (kind === 'video' && item.viaFfmpeg) {
+          if (!(await sniffMpegPS(file))) { skipped.push(file.name + ' (это не видео MPEG; .mod бывает и музыкальным модулем трекера)'); continue; }
+          item.meta = 'MPEG-PS';
         } else if (kind === 'video') {
           try {                                    // сразу проверяем, что браузер вообще умеет это видео (кодек!)
             const info = await probeVideo(file);
@@ -478,6 +486,7 @@
       imgCount.textContent = imgs.length ? 'файлов: ' + imgs.length : '';
       docCount.textContent = docs.length ? 'файлов: ' + docs.length : '';
       vidCount.textContent = vids.length ? 'файлов: ' + vids.length : '';
+      ffNote.classList.toggle('visible', vids.some(i => i.viaFfmpeg));
 
       // изображения: недоступные в этом браузере форматы блокируем; MP4/WebM — только если загружен GIF
       imgButtons.forEach(b => {
@@ -592,8 +601,8 @@
     function convertImage(item, fmt, ext, q, dither) {
       return new Promise(resolve => {
         const span = item.toEl;
-        span.textContent = 'обработка…'; span.className = 'fi-to';
-        const fail = msg => { span.textContent = msg; span.className = 'fi-to error'; resolve(); };
+        span.textContent = 'обработка…'; span.className = 'fi-to'; span.title = ''; item.errMsg = '';
+        const fail = (msg, detail) => { item.errMsg = detail || msg; span.textContent = msg; span.title = detail || ''; span.className = 'fi-to error'; resolve(); };
         const finish = blob => {
           item.result = { blob, name: baseName(item.file.name) + '.' + ext };
           const pct = Math.round((1 - blob.size / item.file.size) * 100);
@@ -601,22 +610,19 @@
           span.className = 'fi-to done';
           resolve();
         };
-        const img = new Image();
-        const url = URL.createObjectURL(item.file);
-        img.onerror = () => { URL.revokeObjectURL(url); fail('не удалось прочитать'); };
-        img.onload = async () => {
+        // source — Image или canvas (HEIC, декодированный libheif)
+        const render = async (source, w, h) => {
           const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
-          if (fmt === 'image/jpeg' || fmt === 'image/bmp') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-          ctx.drawImage(img, 0, 0);
-          URL.revokeObjectURL(url);
+          if (fmt === 'image/jpeg' || fmt === 'image/bmp') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+          ctx.drawImage(source, 0, 0);
           if (fmt === 'image/gif') {
             await new Promise(r => setTimeout(r, 20));          // дать интерфейсу перерисоваться перед тяжёлой работой
             try {
-              const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-              finish(new Blob([encodeGif(data, canvas.width, canvas.height, dither)], { type: 'image/gif' }));
-            } catch (err) { console.error(err); fail('ошибка кодирования GIF'); }
+              const data = ctx.getImageData(0, 0, w, h).data;
+              finish(new Blob([encodeGif(data, w, h, dither)], { type: 'image/gif' }));
+            } catch (err) { console.error(err); fail('ошибка кодирования GIF', err.message); }
             return;
           }
           canvas.toBlob(blob => {
@@ -624,6 +630,17 @@
             finish(blob);
           }, fmt, q);
         };
+        if (item.heic) {
+          span.textContent = 'декодирую HEIC…';
+          HeicDecode.load(item.file)
+            .then(r => { span.title = 'HEIC: ' + r.method; span.textContent = 'обработка…'; return render(r.source, r.width, r.height); })
+            .catch(err => { console.error(err); fail('ошибка HEIC', err.message); });
+          return;
+        }
+        const img = new Image();
+        const url = URL.createObjectURL(item.file);
+        img.onerror = () => { URL.revokeObjectURL(url); fail('не удалось прочитать'); };
+        img.onload = () => render(img, img.naturalWidth, img.naturalHeight).finally(() => URL.revokeObjectURL(url));
         img.src = url;
       });
     }
@@ -913,6 +930,76 @@
       } finally { src.close(); }
     }
 
+    // ── MOD / MPG / VOB через ffmpeg.wasm (в отдельном потоке) ──
+    // У MPEG-PS (контейнер JVC MOD и DVD) заголовок пакета: 00 00 01 BA (или 00 00 01 B3 у «голого» MPEG-видео)
+    async function sniffMpegPS(file) {
+      const b = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+      for (let i = 0; i + 4 <= b.length; i++) if (b[i] === 0 && b[i + 1] === 0 && b[i + 2] === 1 && (b[i + 3] === 0xBA || b[i + 3] === 0xB3)) return true;
+      return false;
+    }
+
+    const FF_MIME = { gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska', mov: 'video/quicktime' };
+    // качество → [CRF для H.264, CRF для VP8]; «как в исходнике» для MPEG-2 смысла не имеет — берём разумный средний
+    const FF_CRF = { copy: [23, 20], QUALITY_VERY_LOW: [34, 40], QUALITY_LOW: [29, 32], QUALITY_MEDIUM: [25, 24], QUALITY_HIGH: [22, 16], QUALITY_VERY_HIGH: [19, 10] };
+
+    function ffmpegArgs(target, o, inName, outName) {
+      const gif = target === 'gif', args = [];
+      const start = gif ? 0 : o.start, end = gif ? undefined : o.end;
+      if (start) args.push('-ss', String(start));
+      args.push('-i', '/in/' + inName);
+      if (gif) args.push('-t', String(o.maxDur));
+      else if (end !== undefined) args.push('-t', String(Math.max(0.1, end - (start || 0))));
+      // деинтерлейс только помеченных кадров, «широкие» пиксели (анаморф 16:9) → квадратные, чётная ширина
+      const vf = ['yadif=deint=interlaced', 'scale=trunc(iw*sar/2)*2:ih', 'setsar=1'];
+      if (o.width) vf.push('scale=' + o.width + ':-2:flags=lanczos');
+      if (gif) {
+        vf.push('fps=' + o.fps);
+        args.push('-vf', vf.join(',') + ',split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=' + (o.dither ? 'sierra2_4a' : 'none'), '-an', '-loop', '0');
+      } else {
+        if (o.fps) vf.push('fps=' + o.fps);
+        args.push('-vf', vf.join(','));
+        const [c264, cvp8] = FF_CRF[o.quality] || FF_CRF.copy;
+        // WebM — VP8, а не VP9: libvpx-vp9 в одно-поточном wasm валит вкладку (не хватает памяти), VP8 быстрый и надёжный
+        if (target === 'webm') args.push('-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '8M', '-crf', String(cvp8));
+        else args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', String(c264), '-pix_fmt', 'yuv420p');
+        if (o.mute) args.push('-an');
+        // Vorbis, а не Opus: libopus в этой wasm-сборке роняет вкладку на любом стерео (на моно работает); -ac 2 сводит 5.1 в стерео
+        else if (target === 'webm') args.push('-c:a', 'libvorbis', '-b:a', '128k', '-ac', '2');
+        else args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
+        if (target === 'mp4' || target === 'mov') args.push('-movflags', '+faststart');
+      }
+      args.push(outName);
+      return args;
+    }
+
+    function ffmpegRun(file, inName, args, outName, onStage, onProgress) {
+      return new Promise((resolve, reject) => {
+        const w = new Worker('ffmpeg-worker.js'), logs = [];
+        const finish = (fn, v) => { w.terminate(); fn(v); };       // воркер убиваем: память wasm не сжимается
+        w.onerror = e => finish(reject, new Error('ffmpeg: не удалось запустить (' + (e.message || 'ошибка воркера') + ')'));
+        w.onmessage = ev => {
+          const m = ev.data;
+          if (m.type === 'loaded') { onStage('конвертирую…'); w.postMessage({ type: 'run', file, inName, args, outName }); }
+          else if (m.type === 'log') { logs.push(m.line); if (logs.length > 80) logs.shift(); }
+          else if (m.type === 'progress') onProgress(m.progress);
+          else if (m.type === 'done') finish(resolve, m.data);
+          else if (m.type === 'error') {
+            const hint = logs.slice().reverse().find(l => /error|invalid|no such|unknown|not found|failed|unsupported/i.test(l)) || logs[logs.length - 1] || '';
+            finish(reject, new Error(m.message + (hint ? ' — ' + hint : '')));
+          }
+        };
+        onStage('загружаю ffmpeg (≈31 МБ)…');
+        w.postMessage({ type: 'load', coreURL: new URL('ffmpeg-core.js', location.href).href, wasmURL: new URL('ffmpeg-core.wasm.gz', location.href).href });
+      });
+    }
+
+    async function ffmpegConvert(item, target, o, progress) {
+      const inName = 'input.' + item.ext, outName = 'output.' + target, t0 = Date.now();
+      const data = await ffmpegRun(item.file, inName, ffmpegArgs(target, o, inName, outName), outName, progress,
+        p => progress(p > 0 && p <= 1 ? 'ffmpeg ' + Math.round(p * 100) + '%' : 'ffmpeg · ' + Math.round((Date.now() - t0) / 1000) + ' с'));
+      return new Blob([data], { type: FF_MIME[target] });
+    }
+
     // ── видео → видео (Mediabunny: демукс + декод/энкод WebCodecs + муксер, со звуком) ──
     let mbPromise = null;
     const getMB = () => mbPromise || (mbPromise = import('./mediabunny.min.mjs').catch(() => {
@@ -1154,17 +1241,21 @@
         runPool(docs, 1, it => convertDocItem(it, target, stats)),        // документы по одному: PDF тяжёлый
         runPool(gifJobs, 1, it => convertMediaItem(it, async progress =>
           ({ blob: await gifToVideo(it.file, fmt, q, progress), name: baseName(it.file.name) + '.' + ext }), stats)),
-        runPool(vids, 1, it => convertMediaItem(it, async (progress, note) => vidTarget === 'gif'
+        runPool(vids, 1, it => convertMediaItem(it, async (progress, note) => it.viaFfmpeg
+          ? (it.toEl.title = 'метод: ffmpeg.wasm', { blob: await ffmpegConvert(it, vidTarget, vidTarget === 'gif' ? vo : vv, progress), name: baseName(it.file.name) + '.' + vidTarget })
+          : vidTarget === 'gif'
           ? { blob: await videoToGif(it.file, vo, progress, w => stats.warnings.push(it.file.name + ': ' + w), note), name: baseName(it.file.name) + '.gif' }
           : { blob: await videoToVideo(it.file, vidTarget, vv, progress, w => stats.warnings.push(it.file.name + ': ' + w)), name: baseName(it.file.name) + '.' + vidTarget }, stats))
       ]);
       const attempted = imgs.length + docs.length + gifJobs.length + vids.length, ok = items.filter(i => i.result).length;
       let msg = ok ? 'Готово: ' + ok + ' из ' + attempted : 'Ничего не удалось конвертировать';
       if (skipped.length) msg += '. Пропущено ' + skipped.length + ': выбранный формат им не подходит';
+      const imgErrs = items.filter(i => i.kind === 'image' && i.errMsg && !i.result).map(i => i.file.name + ': ' + i.errMsg);
+      if (imgErrs.length) msg += '. ' + imgErrs.join('; ');
       if (stats.notes.length) msg += '. ' + stats.notes.join('; ');
       if (stats.warnings.length) msg += '. Внимание — ' + stats.warnings.join('; ');
       if (stats.lastError) msg += '. ' + stats.lastError;
-      say(msg, !ok || !!stats.lastError);
+      say(msg, !ok || !!stats.lastError || imgErrs.length > 0);
       convertBtn.disabled = false;
       updateButtons();
     };

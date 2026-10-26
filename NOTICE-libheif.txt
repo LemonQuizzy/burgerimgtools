@@ -1,0 +1,11 @@
+libheif-bundle.js — это libheif (HEIF/HEIC) и libde265 (HEVC), скомпилированные в WebAssembly проектом libheif-js
+(пакет libheif-js 1.23.2 на npm), лицензия LGPL-3.0 (текст — LICENSE-libheif.txt).
+
+Файл используется без изменений и загружается только при открытии HEIC/HEIF, которые браузер не читает сам (см. heic-worker.js).
+Он лежит отдельным файлом, поэтому заменить его своей сборкой можно без правки остального кода.
+Исходный код:
+  libheif-js : https://github.com/catdad-experiments/libheif-js   (версия v1.23.2)
+  libheif    : https://github.com/strukturag/libheif
+  libde265   : https://github.com/strukturag/libde265
+
+heic.js и heic-worker.js — собственный код проекта.

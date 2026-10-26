@@ -1,0 +1,14 @@
+ffmpeg-core.js / ffmpeg-core.wasm.gz — это FFmpeg, скомпилированный в WebAssembly проектом ffmpeg.wasm
+(пакет @ffmpeg/core 0.12.10 на npm), лицензия GPL-2.0-or-later (сборка включает x264, libvpx, libopus и др.).
+
+ffmpeg-core.wasm.gz — тот же ffmpeg-core.wasm из пакета, просто сжатый gzip -9 (без изменения содержимого; после распаковки
+совпадает побайтно, sha256 9f57947a…). Так файл укладывается в лимит 25 МБ у GitHub; воркер распаковывает его при загрузке.
+
+Файлы используются без изменений и подгружаются только при конвертации MOD / MPG / VOB (см. ffmpeg-worker.js).
+Если вы распространяете этот сайт другим людям, GPL требует предоставить им исходный код:
+  ffmpeg.wasm : https://github.com/ffmpegwasm/ffmpeg.wasm   (каталог packages/core, версия v0.12.10)
+  FFmpeg      : https://ffmpeg.org/                          (исходники и список включённых библиотек — там же)
+  x264        : https://www.videolan.org/developers/x264.html
+Текст лицензии GPL-2.0: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+ffmpeg-worker.js — собственный код проекта (тонкая обёртка над ядром, по мотивам worker.js из @ffmpeg/ffmpeg, MIT).

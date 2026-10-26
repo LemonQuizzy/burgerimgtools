@@ -131,10 +131,10 @@
 
     <label>Выбери изображение(я)</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*,.arw,.cr3,.nef" multiple>
+      <input type="file" id="fileInput" accept="image/*,.heic,.heif,.hif,.arw,.cr3,.nef" multiple>
       <div class="drop-zone-text">
         Перетащи сюда или <strong>нажми для выбора</strong><br>
-        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF и другие · RAW: ARW, CR3, NEF</span>
+        <span style="font-size:11px;color:var(--text-dim)">JPG, PNG, WebP, GIF, HEIC и другие · RAW: ARW, CR3, NEF</span>
       </div>
     </div>
 
@@ -239,6 +239,7 @@
 
   <script src="handoff.js"></script>
   <script src="raw.js"></script>
+  <script src="heic.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
     const dropZone     = document.getElementById('dropZone');
@@ -307,21 +308,33 @@
     }
 
     async function prepareFiles(list) {
-      const out = [], ok = [], errors = [];
-      if (list.some(f => RawPreview.isRaw(f))) setRawNote('Извлекаю превью из RAW…');
-      for (const f of list) {
+      const out = [], notes = [], errors = [];
+      const heicFlags = await Promise.all(list.map(f => HeicDecode.hinted(f) ? HeicDecode.sniff(f) : false));
+      if (list.some(f => RawPreview.isRaw(f)) || heicFlags.some(Boolean)) setRawNote('Готовлю файлы (RAW / HEIC)…');
+      const rawOk = [], heicOk = [];
+      for (let i = 0; i < list.length; i++) {
+        const f = list[i];
+        if (heicFlags[i]) {
+          try {
+            const r = await HeicDecode.prepare(f);
+            if (r.converted) { r.file.rawSource = f.name; r.file.rawSize = f.size; r.file.srcKind = 'HEIC'; heicOk.push(f.name + ' — ' + r.width + '×' + r.height); }
+            out.push(r.file);
+          } catch (e) { errors.push('HEIC ' + f.name + ': ' + e.message); }
+          continue;
+        }
         if (!RawPreview.isRaw(f)) { out.push(f); continue; }
         try {
           const r = await RawPreview.extract(f);
           const jf = new File([r.blob], f.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
           jf.rawSource = f.name; jf.rawSize = f.size;
           out.push(jf);
-          ok.push(f.name + ' — ' + r.width + '×' + r.height);
-        } catch (e) { errors.push(f.name + ': ' + e.message); }
+          rawOk.push(f.name + ' — ' + r.width + '×' + r.height);
+        } catch (e) { errors.push('RAW ' + f.name + ': ' + e.message); }
       }
-      if (errors.length) setRawNote('Не удалось обработать RAW — ' + errors.join('; ') + (ok.length ? '. Остальные файлы загружены.' : ''), true);
-      else if (ok.length) setRawNote('RAW: используется встроенное JPEG-превью камеры (' + ok.join('; ') + '). Разрешение результата ограничено этим превью, а не полным размером матрицы.');
-      else setRawNote('');
+      if (rawOk.length) notes.push('RAW: используется встроенное JPEG-превью камеры (' + rawOk.join('; ') + '). Разрешение результата ограничено этим превью, а не полным размером матрицы.');
+      if (heicOk.length) notes.push('HEIC: расшифрован встроенным декодером и сохранён в JPEG высокого качества (' + heicOk.join('; ') + ').');
+      if (errors.length) setRawNote('Не удалось обработать — ' + errors.join('; ') + (out.length ? '. Остальные файлы загружены.' : '') + (notes.length ? ' ' + notes.join(' ') : ''), true);
+      else setRawNote(notes.join(' '));
       return out;
     }
 
@@ -343,7 +356,7 @@
     function loadSingle(file) {
       originalFile = file;
       const objectUrl = URL.createObjectURL(file);
-      beforeSize.textContent = formatBytes(srcSize(file)) + (file.rawSource ? ' (RAW)' : '');
+      beforeSize.textContent = formatBytes(srcSize(file)) + (file.rawSource ? ' (' + (file.srcKind || 'RAW') + ')' : '');
       const img = new Image();
       img.onload = () => {
         originalImage = img;

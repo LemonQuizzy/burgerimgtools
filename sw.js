@@ -1,5 +1,5 @@
-const CACHE = 'imgtools-v13';
-const ASSETS = ['./','./index.html','./batchcomp.html','./exif.html','./imgconv.html','./common.css','./settings.js','./theme-init.js','./handoff.js','./raw.js','./gifenc.js','./omggif.js','./mp4-muxer.js','./webm-muxer.js','./mediabunny.min.mjs','./manifest.json','./icon-192.png','./icon-512.png'];
+const CACHE = 'imgtools-v17';
+const ASSETS = ['./','./index.html','./batchcomp.html','./exif.html','./imgconv.html','./common.css','./settings.js','./theme-init.js','./handoff.js','./raw.js','./heic.js','./heic-worker.js','./gifenc.js','./omggif.js','./mp4-muxer.js','./webm-muxer.js','./mediabunny.min.mjs','./manifest.json','./icon-192.png','./icon-512.png'];
 const CROSS = ['cdn.jsdelivr.net','fonts.googleapis.com','fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
@@ -15,7 +15,10 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin === self.location.origin) {
+  if (url.origin === self.location.origin && /\/(ffmpeg-core\.(js|wasm(\.gz)?)|libheif-bundle\.js)$/.test(url.pathname)) {
+    // тяжёлые декодеры — ядро ffmpeg (≈10 МБ в сжатом виде) и libheif (≈2 МБ): cache-first — качаем один раз, дальше работает офлайн
+    e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => store(req, r))));
+  } else if (url.origin === self.location.origin) {
     // network-first: пользователь всегда получает свежую версию, офлайн — из кэша
     e.respondWith(fetch(req).then(r => store(req, r)).catch(() => caches.match(req, { ignoreSearch: true })));
   } else if (CROSS.includes(url.hostname)) {
