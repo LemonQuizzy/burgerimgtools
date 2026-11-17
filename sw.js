@@ -1,4 +1,4 @@
-const CACHE = 'imgtools-v17';
+const CACHE = 'imgtools-v19';
 const ASSETS = ['./','./index.html','./batchcomp.html','./exif.html','./imgconv.html','./common.css','./settings.js','./theme-init.js','./handoff.js','./raw.js','./heic.js','./heic-worker.js','./gifenc.js','./omggif.js','./mp4-muxer.js','./webm-muxer.js','./mediabunny.min.mjs','./manifest.json','./icon-192.png','./icon-512.png'];
 const CROSS = ['cdn.jsdelivr.net','fonts.googleapis.com','fonts.gstatic.com'];
 
